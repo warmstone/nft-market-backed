@@ -3,23 +3,30 @@ package handler
 import (
 	"net/http"
 
+	gqlgen "nft-market-backend/internal/graphql"
+
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
 )
 
-// GraphQLHandler provides a stub GraphQL endpoint for v1.
-// Full GraphQL schema and resolvers are deferred to post-v1; the REST API
-// covers all core use cases (order CRUD, collection browse, stats).
-type GraphQLHandler struct{}
-
-// NewGraphQLHandler creates a GraphQLHandler.
-func NewGraphQLHandler() *GraphQLHandler {
-	return &GraphQLHandler{}
+type GraphQLHandler struct {
+	srv *handler.Server
 }
 
-// Handle handles POST /api/v1/graphql.
+func NewGraphQLHandler(resolver *gqlgen.Resolver) *GraphQLHandler {
+	srv := handler.NewDefaultServer(gqlgen.NewExecutableSchema(gqlgen.Config{Resolvers: resolver}))
+	return &GraphQLHandler{srv: srv}
+}
+
 func (h *GraphQLHandler) Handle(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "NOT_IMPLEMENTED",
-		"message": "GraphQL endpoint is deferred to post-v1. Use REST endpoints for all queries.",
-	})
+	h.srv.ServeHTTP(c.Writer, c.Request)
+}
+
+func (h *GraphQLHandler) Playground(c *gin.Context) {
+	playground.Handler("GraphQL", "/api/v1/graphql").ServeHTTP(c.Writer, c.Request)
+}
+
+func (h *GraphQLHandler) PlaygroundHandler() http.Handler {
+	return playground.Handler("GraphQL", "/api/v1/graphql")
 }

@@ -1,3 +1,12 @@
+// @title           NFT Market API
+// @version         1.0
+// @description     EIP-712 signed order DEX backend. Submit signed orders, browse the order book, query collections and stats.
+// @host            localhost:8080
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 package main
 
 import (
@@ -10,6 +19,7 @@ import (
 	"syscall"
 
 	"nft-market-backend/internal/config"
+	"nft-market-backend/internal/graphql"
 	"nft-market-backend/internal/handler"
 	logpkg "nft-market-backend/internal/log"
 	"nft-market-backend/internal/middleware"
@@ -129,7 +139,13 @@ func main() {
 	orderH := handler.NewOrderHandler(orderSvc, metadataSvc)
 	collectionH := handler.NewCollectionHandler(collectionRepo, orderRepo)
 	wsH := handler.NewWSHandler(hub)
-	graphqlH := handler.NewGraphQLHandler()
+	// GraphQL resolver and handler.
+	gqlResolver := &graphql.Resolver{
+		OrderSvc:       orderSvc,
+		CollectionRepo: collectionRepo,
+		OrderRepo:      orderRepo,
+	}
+	graphqlH := handler.NewGraphQLHandler(gqlResolver)
 
 	// Router.
 	router := gin.New()
@@ -164,6 +180,7 @@ func main() {
 		api.GET("/collections/:address", collectionH.Get)
 		api.GET("/stats", collectionH.GlobalStats)
 		api.GET("/stats/:collection", collectionH.CollectionStats)
+		api.GET("/graphql", graphqlH.Playground)
 	}
 
 	// Protected routes (auth required).
