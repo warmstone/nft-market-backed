@@ -38,7 +38,7 @@ func (h *AuthHandler) Challenge(c *gin.Context) {
 
 	challenge, err := h.authSvc.GenerateChallenge(c.Request.Context(), address)
 	if err != nil {
-		code := extractErrorCode(err.Error())
+		code := extractErrorCode(err)
 		c.JSON(http.StatusBadRequest, domain.ErrorResponse{Error: code, Message: err.Error()})
 		return
 	}
@@ -67,7 +67,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	resp, err := h.authSvc.Login(c.Request.Context(), req.Address, req.Signature)
 	if err != nil {
-		code := extractErrorCode(err.Error())
+		code := extractErrorCode(err)
 		status := http.StatusBadRequest
 		if code == "SIGNATURE_INVALID" || code == "SIGNATURE_MISMATCH" {
 			status = http.StatusUnauthorized

@@ -34,7 +34,7 @@ func NewAuthService(cache *CacheService, jwtSecret string, jwtExpiry, challengeT
 
 func (s *AuthService) GenerateChallenge(ctx context.Context, address string) (*domain.AuthChallenge, error) {
 	if !common.IsHexAddress(address) {
-		return nil, fmt.Errorf("INVALID_ADDRESS: not a valid ethereum address")
+		return nil, domain.NewAppError("INVALID_ADDRESS", "not a valid ethereum address", nil)
 	}
 
 	nonceBytes := make([]byte, 32)
@@ -60,13 +60,13 @@ func (s *AuthService) GenerateChallenge(ctx context.Context, address string) (*d
 
 func (s *AuthService) Login(ctx context.Context, address string, signature string) (*domain.LoginResponse, error) {
 	if !common.IsHexAddress(address) {
-		return nil, fmt.Errorf("INVALID_ADDRESS: not a valid ethereum address")
+		return nil, domain.NewAppError("INVALID_ADDRESS", "not a valid ethereum address", nil)
 	}
 
 	key := "auth:nonce:" + strings.ToLower(address)
 	var storedNonce string
 	if err := s.cache.Get(ctx, key, &storedNonce); err != nil {
-		return nil, fmt.Errorf("INVALID_CHALLENGE: nonce not found or expired")
+		return nil, domain.NewAppError("INVALID_CHALLENGE", "nonce not found or expired", nil)
 	}
 
 	issuedAt := time.Now().UTC().Format(time.RFC3339)
@@ -74,10 +74,10 @@ func (s *AuthService) Login(ctx context.Context, address string, signature strin
 
 	recovered, err := recoverPersonalSign(challenge, signature)
 	if err != nil {
-		return nil, fmt.Errorf("SIGNATURE_INVALID: %w", err)
+		return nil, domain.NewAppError("SIGNATURE_INVALID", "signature verification failed", err)
 	}
 	if !strings.EqualFold(recovered, address) {
-		return nil, fmt.Errorf("SIGNATURE_MISMATCH: recovered %s, expected %s", recovered, address)
+		return nil, domain.NewAppError("SIGNATURE_MISMATCH", "recovered signer does not match", nil)
 	}
 
 	_ = s.cache.Del(ctx, key)

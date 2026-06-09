@@ -42,45 +42,45 @@ func (s *OrderService) Submit(req *domain.SubmitOrderRequest) (*domain.Order, er
 	// 1. Validate signature.
 	order := requestToOrder(req, s.chainID)
 	if err := s.sigSvc.Verify(order); err != nil {
-		return nil, fmt.Errorf("ORDER_SIGNATURE_INVALID: %w", err)
+		return nil, domain.NewAppError("ORDER_SIGNATURE_INVALID", "signature verification failed", err)
 	}
 
 	// 2. Validate maker.
 	if !common.IsHexAddress(req.Maker) || req.Maker == "0x0000000000000000000000000000000000000000" {
-		return nil, fmt.Errorf("INVALID_MAKER: maker must be a non-zero address")
+		return nil, domain.NewAppError("INVALID_MAKER", "maker must be a non-zero address", nil)
 	}
 
 	// 3. Validate taker (address(0) or valid).
 	if req.Taker != "" && !common.IsHexAddress(req.Taker) {
-		return nil, fmt.Errorf("INVALID_TAKER: taker must be a valid address or empty")
+		return nil, domain.NewAppError("INVALID_TAKER", "taker must be a valid address or empty", nil)
 	}
 
 	// 4. Validate side, kind, assetType.
 	if req.Side > 1 {
-		return nil, fmt.Errorf("INVALID_SIDE: must be 0 or 1")
+		return nil, domain.NewAppError("INVALID_SIDE", "side must be 0 or 1", nil)
 	}
 	if req.Kind > 4 {
-		return nil, fmt.Errorf("INVALID_KIND: must be 0-4")
+		return nil, domain.NewAppError("INVALID_KIND", "kind must be 0-4", nil)
 	}
 	if req.AssetType > 1 {
-		return nil, fmt.Errorf("INVALID_ASSET_TYPE: must be 0 or 1")
+		return nil, domain.NewAppError("INVALID_ASSET_TYPE", "asset type must be 0 or 1", nil)
 	}
 
 	// 5. Validate amount.
 	amount := new(big.Int)
 	amount.SetString(req.Amount, 10)
 	if amount.Sign() <= 0 {
-		return nil, fmt.Errorf("INVALID_AMOUNT: amount must be >= 1")
+		return nil, domain.NewAppError("INVALID_AMOUNT", "amount must be >= 1", nil)
 	}
 	if req.AssetType == domain.ERC721 && amount.Cmp(big.NewInt(1)) != 0 {
-		return nil, fmt.Errorf("INVALID_AMOUNT: ERC721 amount must be 1")
+		return nil, domain.NewAppError("INVALID_AMOUNT", "ERC721 amount must be 1", nil)
 	}
 
 	// 6. Validate price.
 	price := new(big.Int)
 	price.SetString(req.Price, 10)
 	if price.Sign() <= 0 {
-		return nil, fmt.Errorf("INVALID_PRICE: price must be > 0")
+		return nil, domain.NewAppError("INVALID_PRICE", "price must be > 0", nil)
 	}
 
 	// 7. Validate time window.
@@ -88,14 +88,14 @@ func (s *OrderService) Submit(req *domain.SubmitOrderRequest) (*domain.Order, er
 	if req.StartTime > 0 {
 		start := int64(req.StartTime)
 		if start < nowUnix-300 {
-			return nil, fmt.Errorf("ORDER_EXPIRED: startTime too far in the past")
+			return nil, domain.NewAppError("ORDER_EXPIRED", "startTime too far in the past", nil)
 		}
 		if start > nowUnix+30*24*3600 {
-			return nil, fmt.Errorf("INVALID_START_TIME: startTime too far in the future")
+			return nil, domain.NewAppError("INVALID_START_TIME", "startTime too far in the future", nil)
 		}
 	}
 	if req.EndTime > 0 && int64(req.EndTime) <= nowUnix {
-		return nil, fmt.Errorf("ORDER_EXPIRED: endTime is in the past")
+		return nil, domain.NewAppError("ORDER_EXPIRED", "endTime is in the past", nil)
 	}
 
 	// 8. Dutch auction constraints.
@@ -103,10 +103,10 @@ func (s *OrderService) Submit(req *domain.SubmitOrderRequest) (*domain.Order, er
 		startPrice := new(big.Int)
 		startPrice.SetString(req.StartPrice, 10)
 		if startPrice.Cmp(price) <= 0 {
-			return nil, fmt.Errorf("INVALID_DUTCH_AUCTION: startPrice must be > price")
+			return nil, domain.NewAppError("INVALID_DUTCH_AUCTION", "startPrice must be > price", nil)
 		}
 		if req.EndTime <= req.StartTime {
-			return nil, fmt.Errorf("INVALID_DUTCH_AUCTION: endTime must be > startTime")
+			return nil, domain.NewAppError("INVALID_DUTCH_AUCTION", "endTime must be > startTime", nil)
 		}
 	}
 
@@ -116,7 +116,7 @@ func (s *OrderService) Submit(req *domain.SubmitOrderRequest) (*domain.Order, er
 
 	// 10. Persist.
 	if err := s.orderRepo.Insert(order); err != nil {
-		return nil, fmt.Errorf("ORDER_PERSIST_FAILED: %w", err)
+		return nil, domain.NewAppError("ORDER_PERSIST_FAILED", "failed to persist order", err)
 	}
 
 	return order, nil

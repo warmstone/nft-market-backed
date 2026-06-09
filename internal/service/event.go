@@ -7,8 +7,11 @@ import (
 	"math/big"
 
 	"nft-market-backend/internal/domain"
+	logpkg "nft-market-backend/internal/log"
 	"nft-market-backend/internal/repository"
 	"nft-market-backend/internal/ws"
+
+	"go.uber.org/zap"
 )
 
 // EventService handles chain events and dispatches state transitions.
@@ -60,9 +63,14 @@ func (s *EventService) handleOrderFulfilled(event *domain.ContractEvent) error {
 		return fmt.Errorf("update order status: %w", err)
 	}
 
-	order, _ := s.orderRepo.FindByHash(data.OrderHash)
+	order, err := s.orderRepo.FindByHash(data.OrderHash)
+	if err != nil {
+		logpkg.Logger.Warn("failed to find order by hash", zap.Error(err))
+	}
 	if order != nil {
-		_ = s.cache.InvalidateOrders(context.Background(), order.Collection)
+		if err := s.cache.InvalidateOrders(context.Background(), order.Collection); err != nil {
+			logpkg.Logger.Warn("failed to invalidate order cache", zap.String("collection", order.Collection), zap.Error(err))
+		}
 		s.broadcast(order.Collection, "order:filled", map[string]string{
 			"orderHash":  data.OrderHash,
 			"txHash":     event.TxHash,
@@ -78,10 +86,17 @@ func (s *EventService) handleOrderCancelled(event *domain.ContractEvent) error {
 		return fmt.Errorf("unmarshal OrderCancelled: %w", err)
 	}
 
-	order, _ := s.orderRepo.FindByHash(data.OrderHash)
+	order, err := s.orderRepo.FindByHash(data.OrderHash)
+	if err != nil {
+		logpkg.Logger.Warn("failed to find order by hash", zap.Error(err))
+	}
 	if order != nil {
-		_ = s.orderRepo.UpdateStatus(data.OrderHash, domain.Cancelled)
-		_ = s.cache.InvalidateOrders(context.Background(), order.Collection)
+		if err := s.orderRepo.UpdateStatus(data.OrderHash, domain.Cancelled); err != nil {
+			logpkg.Logger.Warn("failed to update order status", zap.String("orderHash", data.OrderHash), zap.Error(err))
+		}
+		if err := s.cache.InvalidateOrders(context.Background(), order.Collection); err != nil {
+			logpkg.Logger.Warn("failed to invalidate order cache", zap.String("collection", order.Collection), zap.Error(err))
+		}
 		s.broadcast(order.Collection, "order:cancelled", map[string]string{
 			"maker": data.Maker,
 		})
@@ -122,7 +137,9 @@ func (s *EventService) handleCollectionUpdated(event *domain.ContractEvent) erro
 		if err := s.orderRepo.CancelByCollection(raw.Collection); err != nil {
 			return fmt.Errorf("cancel by collection: %w", err)
 		}
-		_ = s.cache.InvalidateOrders(context.Background(), raw.Collection)
+		if err := s.cache.InvalidateOrders(context.Background(), raw.Collection); err != nil {
+			logpkg.Logger.Warn("failed to invalidate order cache", zap.String("collection", raw.Collection), zap.Error(err))
+		}
 	}
 
 	s.broadcast(raw.Collection, "collection:updated", map[string]interface{}{

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -48,7 +49,7 @@ func (h *OrderHandler) Submit(c *gin.Context) {
 	order, err := h.orderSvc.Submit(&req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-			Error:   extractErrorCode(err.Error()),
+			Error:   extractErrorCode(err),
 			Message: err.Error(),
 		})
 		return
@@ -315,8 +316,12 @@ func parseOrderFilter(c *gin.Context) (domain.OrderFilter, error) {
 	return filter, nil
 }
 
-func extractErrorCode(errMsg string) string {
-	parts := strings.SplitN(errMsg, ": ", 2)
+func extractErrorCode(err error) string {
+	var appErr *domain.AppError
+	if errors.As(err, &appErr) {
+		return appErr.Code
+	}
+	parts := strings.SplitN(err.Error(), ": ", 2)
 	code := strings.TrimSpace(parts[0])
 	return strings.ToUpper(strings.ReplaceAll(code, " ", "_"))
 }
