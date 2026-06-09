@@ -1,19 +1,33 @@
 package middleware
 
-import "github.com/gin-gonic/gin"
+import (
+	"strings"
 
-// CORS returns a middleware that allows all origins for v1.
-func CORS() gin.HandlerFunc {
+	"github.com/gin-gonic/gin"
+)
+
+func CORS(allowedOrigins []string) gin.HandlerFunc {
+	originMap := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		originMap[strings.ToLower(o)] = true
+	}
+
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if origin != "" {
+			originLower := strings.ToLower(origin)
+			if originMap[originLower] {
+				c.Header("Access-Control-Allow-Origin", origin)
+			}
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Credentials", "true")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
 		}
-
 		c.Next()
 	}
 }

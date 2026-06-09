@@ -136,7 +136,7 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestID())
 	router.Use(middleware.AccessLog())
-	router.Use(middleware.CORS())
+	router.Use(middleware.CORS(cfg.Server.AllowedOrigins))
 	router.Use(middleware.RateLimit(10, 20))
 
 	// Body size limit: 1MB
