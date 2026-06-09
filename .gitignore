@@ -2,3 +2,4 @@
 bin/
 /api
 *.log
+coverage.out
