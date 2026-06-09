@@ -39,6 +39,8 @@ func parseLevel(s string) zapcore.Level {
 	switch strings.ToLower(s) {
 	case "debug":
 		return zapcore.DebugLevel
+	case "info", "":
+		return zapcore.InfoLevel
 	case "warn":
 		return zapcore.WarnLevel
 	case "error":
