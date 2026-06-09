@@ -12,19 +12,32 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// SignatureVerifier abstracts EIP-712 signature verification for testability.
+type SignatureVerifier interface {
+	Verify(order *domain.Order) error
+}
+
+// OrderRepository abstracts order persistence for testability.
+type OrderRepository interface {
+	Insert(o *domain.Order) error
+	Find(filter domain.OrderFilter) ([]domain.Order, int64, error)
+	FindByHash(hash string) (*domain.Order, error)
+	GetBestPrice(collection string, side domain.OrderSide) (*big.Int, error)
+}
+
 // OrderService handles order submission, querying, and response formatting.
 type OrderService struct {
-	orderRepo      *repository.OrderRepo
+	orderRepo      OrderRepository
 	collectionRepo *repository.CollectionRepo
-	sigSvc         *SignatureService
+	sigSvc         SignatureVerifier
 	chainID        int64
 }
 
 // NewOrderService creates an OrderService.
 func NewOrderService(
-	orderRepo *repository.OrderRepo,
+	orderRepo OrderRepository,
 	collectionRepo *repository.CollectionRepo,
-	sigSvc *SignatureService,
+	sigSvc SignatureVerifier,
 	chainID int64,
 ) *OrderService {
 	return &OrderService{
