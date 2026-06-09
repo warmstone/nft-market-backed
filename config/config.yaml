@@ -23,3 +23,8 @@ ethereum:
   collection_manager_address: "0x0000000000000000000000000000000000000000"
   royalty_manager_address: "0x0000000000000000000000000000000000000000"
   confirmation_blocks: 6
+
+auth:
+  jwt_secret: ""
+  jwt_expiry: 24h
+  challenge_ttl: 5m

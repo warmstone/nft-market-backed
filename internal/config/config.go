@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -15,6 +16,7 @@ type Config struct {
 	Database  DatabaseConfig
 	Redis     RedisConfig
 	Ethereum  EthereumConfig
+	Auth      AuthConfig
 	Migration MigrationConfig
 }
 
@@ -50,6 +52,12 @@ type EthereumConfig struct {
 	CollectionManagerAddress string
 	RoyaltyManagerAddress    string
 	ConfirmationBlocks       int64
+}
+
+type AuthConfig struct {
+	JWTSecret    string        `mapstructure:"jwt_secret"`
+	JWTExpiry    time.Duration `mapstructure:"jwt_expiry"`
+	ChallengeTTL time.Duration `mapstructure:"challenge_ttl"`
 }
 
 func Load(path string) (*Config, error) {
