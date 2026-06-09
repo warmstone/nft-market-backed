@@ -14,10 +14,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// orderService is the interface for order business logic used by OrderHandler.
+type orderService interface {
+	Submit(req *domain.SubmitOrderRequest) (*domain.Order, error)
+	Find(filter domain.OrderFilter) ([]domain.Order, int64, error)
+	GetByHash(hash string) (*domain.Order, error)
+	GetBest(collection string, side domain.OrderSide) (*domain.Order, error)
+	GetUserOrders(maker string, status *domain.OrderStatus) ([]domain.Order, error)
+}
+
+// metadataService is the interface for metadata enqueueing used by OrderHandler.
+type metadataService interface {
+	Enqueue(collection, tokenID string)
+}
+
 // OrderHandler handles REST endpoints for orders.
 type OrderHandler struct {
-	orderSvc    *service.OrderService
-	metadataSvc *service.MetadataService
+	orderSvc    orderService
+	metadataSvc metadataService
 }
 
 // NewOrderHandler creates an OrderHandler.
