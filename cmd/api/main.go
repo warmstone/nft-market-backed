@@ -96,6 +96,16 @@ func main() {
 
 	// Services.
 	sigSvc := service.NewSignatureService(cfg.Ethereum.ChainID, cfg.Ethereum.ExchangeAddress)
+
+	// Auth service.
+	authSvc := service.NewAuthService(
+		cacheSvc,
+		cfg.Auth.JWTSecret,
+		cfg.Auth.JWTExpiry,
+		cfg.Auth.ChallengeTTL,
+	)
+	authH := handler.NewAuthHandler(authSvc)
+
 	orderSvc := service.NewOrderService(orderRepo, collectionRepo, sigSvc, cfg.Ethereum.ChainID)
 	eventSvc := service.NewEventService(orderRepo, collectionRepo, cacheSvc, hub)
 
@@ -129,27 +139,40 @@ func main() {
 	router.Use(middleware.CORS())
 	router.Use(middleware.RateLimit(10, 20))
 
-	// Health checks.
+	// Body size limit: 1MB
+	router.MaxMultipartMemory = 1 << 20
+
+	// Health checks (no auth).
 	healthH := handler.NewHealthHandler(db, cacheSvc.Client(), rpcClient)
 	router.GET("/health", healthH.Health)
 	router.GET("/ready", healthH.Ready)
 
-	api := router.Group("/api/v1")
+	// Auth routes (no auth required).
+	auth := router.Group("/api/v1/auth")
 	{
-		api.POST("/orders", orderH.Submit)
+		auth.GET("/challenge", authH.Challenge)
+		auth.POST("/login", authH.Login)
+	}
+
+	api := router.Group("/api/v1")
+	// Public routes (no auth).
+	{
 		api.GET("/orders", orderH.List)
 		api.GET("/orders/best", orderH.Best)
 		api.GET("/orders/:hash", orderH.Get)
-
 		api.GET("/collections", collectionH.List)
 		api.GET("/collections/:address", collectionH.Get)
-
-		api.GET("/users/:address/orders", orderH.UserOrders)
-
 		api.GET("/stats", collectionH.GlobalStats)
 		api.GET("/stats/:collection", collectionH.CollectionStats)
+	}
 
-		api.POST("/graphql", graphqlH.Handle)
+	// Protected routes (auth required).
+	protected := router.Group("/api/v1")
+	protected.Use(middleware.Auth(authSvc))
+	{
+		protected.POST("/orders", orderH.Submit)
+		protected.GET("/users/:address/orders", orderH.UserOrders)
+		protected.POST("/graphql", graphqlH.Handle)
 	}
 
 	router.GET("/ws/orders", wsH.Handle)
