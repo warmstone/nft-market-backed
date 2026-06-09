@@ -1,0 +1,28 @@
+schema:
+  - internal/graphql/schema.graphql
+
+exec:
+  filename: internal/graphql/generated.go
+  package: graphql
+
+model:
+  filename: internal/graphql/models_gen.go
+  package: graphql
+
+resolver:
+  layout: follow-schema
+  dir: internal/graphql
+  package: graphql
+  filename_template: "{name}.resolvers.go"
+
+models:
+  BigInt:
+    model: nft-market-backend/internal/graphql.BigInt
+  OrderSide:
+    model: nft-market-backend/internal/domain.OrderSide
+  OrderKind:
+    model: nft-market-backend/internal/domain.OrderKind
+  AssetType:
+    model: nft-market-backend/internal/domain.AssetType
+  OrderStatus:
+    model: nft-market-backend/internal/domain.OrderStatus

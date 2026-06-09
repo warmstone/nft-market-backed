@@ -1,0 +1,115 @@
+scalar BigInt
+
+type Order {
+  hash: String!
+  maker: String!
+  taker: String
+  side: Int!
+  kind: Int!
+  assetType: Int!
+  collection: String!
+  tokenId: BigInt!
+  amount: BigInt!
+  price: BigInt!
+  startPrice: BigInt
+  startTime: String!
+  endTime: String!
+  salt: BigInt!
+  signature: String!
+  status: Int!
+  counter: BigInt!
+  currentPrice: BigInt!
+  extra: String!
+  createdAt: String!
+}
+
+type OrderConnection {
+  orders: [Order!]!
+  total: Int!
+  page: Int!
+  pageSize: Int!
+}
+
+type Collection {
+  address: String!
+  name: String!
+  symbol: String!
+  description: String!
+  image: String!
+  banner: String!
+  website: String!
+  twitter: String!
+  discord: String!
+  slug: String!
+  category: String!
+  isVerified: Boolean!
+  isBlocked: Boolean!
+  floorPrice: BigInt
+  bestBid: BigInt
+  listedCount: Int!
+  createdAt: String!
+}
+
+type CollectionConnection {
+  collections: [Collection!]!
+  total: Int!
+  page: Int!
+  pageSize: Int!
+}
+
+type GlobalStats {
+  totalOrders: Int!
+  totalCollections: Int!
+  totalTraders: Int!
+}
+
+type CollectionStats {
+  floorPrice: BigInt
+  bestBid: BigInt
+  listedCount: Int!
+}
+
+input OrderFilter {
+  collection: String
+  maker: String
+  side: Int
+  kind: Int
+  assetType: Int
+  status: Int
+  minPrice: String
+  maxPrice: String
+}
+
+input SubmitOrderInput {
+  maker: String!
+  taker: String
+  side: Int!
+  kind: Int!
+  assetType: Int!
+  collection: String!
+  tokenId: String!
+  amount: String!
+  price: String!
+  paymentToken: String
+  startPrice: String
+  startTime: Int!
+  endTime: Int!
+  salt: String!
+  signature: String!
+  extra: String
+}
+
+type Query {
+  order(hash: String!): Order
+  orders(filter: OrderFilter, page: Int!, pageSize: Int!): OrderConnection!
+  bestOrder(collection: String!, side: Int!): Order
+  collection(address: String!): Collection
+  collections(search: String, page: Int!, pageSize: Int!): CollectionConnection!
+  userOrders(address: String!, status: [Int!], page: Int!, pageSize: Int!): OrderConnection!
+  stats: GlobalStats!
+  collectionStats(address: String!): CollectionStats!
+}
+
+type Mutation {
+  submitOrder(input: SubmitOrderInput!): Order!
+}
