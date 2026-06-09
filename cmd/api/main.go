@@ -33,6 +33,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/golang-migrate/migrate/v4"
@@ -156,6 +157,7 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestID())
 	router.Use(middleware.AccessLog())
+	router.Use(middleware.Metrics())
 	router.Use(middleware.CORS(cfg.Server.AllowedOrigins))
 	router.Use(middleware.RateLimit(10, 20))
 
@@ -164,6 +166,7 @@ func main() {
 
 	// Health checks (no auth).
 	healthH := handler.NewHealthHandler(db, cacheSvc.Client(), rpcClient)
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	router.GET("/health", healthH.Health)
 	router.GET("/ready", healthH.Ready)
 

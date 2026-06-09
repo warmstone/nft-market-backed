@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"nft-market-backend/internal/domain"
+	"nft-market-backend/internal/middleware"
 	"nft-market-backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -55,6 +56,8 @@ func (h *OrderHandler) Submit(c *gin.Context) {
 
 	// Enqueue metadata fetch for this NFT.
 	h.metadataSvc.Enqueue(order.Collection, order.TokenID.Int.String())
+
+	middleware.OrdersSubmittedTotal.Inc()
 
 	c.JSON(http.StatusCreated, gin.H{
 		"orderHash": order.OrderHash,
