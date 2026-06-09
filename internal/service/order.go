@@ -175,11 +175,26 @@ func statusPtr(s domain.OrderStatus) *domain.OrderStatus {
 }
 
 func requestToOrder(req *domain.SubmitOrderRequest, chainID int64) *domain.Order {
-	tokenID, _ := new(big.Int).SetString(req.TokenID, 10)
-	amount, _ := new(big.Int).SetString(req.Amount, 10)
-	price, _ := new(big.Int).SetString(req.Price, 10)
-	startPrice, _ := new(big.Int).SetString(req.StartPrice, 10)
-	salt, _ := new(big.Int).SetString(req.Salt, 10)
+	tokenID, ok := new(big.Int).SetString(req.TokenID, 10)
+	if !ok {
+		tokenID = new(big.Int)
+	}
+	amount, ok := new(big.Int).SetString(req.Amount, 10)
+	if !ok {
+		amount = new(big.Int)
+	}
+	price, ok := new(big.Int).SetString(req.Price, 10)
+	if !ok {
+		price = new(big.Int)
+	}
+	startPrice, ok := new(big.Int).SetString(req.StartPrice, 10)
+	if !ok {
+		startPrice = new(big.Int)
+	}
+	salt, ok := new(big.Int).SetString(req.Salt, 10)
+	if !ok {
+		salt = new(big.Int)
+	}
 
 	taker := req.Taker
 	if taker == "" {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,7 +54,14 @@ func (h *OrderHandler) Submit(c *gin.Context) {
 
 // List handles GET /api/v1/orders.
 func (h *OrderHandler) List(c *gin.Context) {
-	filter := parseOrderFilter(c)
+	filter, err := parseOrderFilter(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Error:   "INVALID_FILTER",
+			Message: err.Error(),
+		})
+		return
+	}
 	orders, total, err := h.orderSvc.Find(filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
@@ -167,7 +175,7 @@ func (h *OrderHandler) UserOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"orders": orders})
 }
 
-func parseOrderFilter(c *gin.Context) domain.OrderFilter {
+func parseOrderFilter(c *gin.Context) (domain.OrderFilter, error) {
 	filter := domain.OrderFilter{}
 
 	if v := c.Query("collection"); v != "" {
@@ -180,43 +188,65 @@ func parseOrderFilter(c *gin.Context) domain.OrderFilter {
 		filter.PaymentToken = v
 	}
 	if v := c.Query("side"); v != "" {
-		s, _ := strconv.Atoi(v)
+		s, err := strconv.Atoi(v)
+		if err != nil || s < 0 || s > 1 {
+			return filter, fmt.Errorf("side must be 0 or 1, got %q", v)
+		}
 		side := domain.OrderSide(s)
 		filter.Side = &side
 	}
 	if v := c.Query("kind"); v != "" {
-		k, _ := strconv.Atoi(v)
+		k, err := strconv.Atoi(v)
+		if err != nil || k < 0 || k > 4 {
+			return filter, fmt.Errorf("kind must be 0-4, got %q", v)
+		}
 		kind := domain.OrderKind(k)
 		filter.Kind = &kind
 	}
 	if v := c.Query("assetType"); v != "" {
-		a, _ := strconv.Atoi(v)
+		a, err := strconv.Atoi(v)
+		if err != nil || a < 0 || a > 1 {
+			return filter, fmt.Errorf("assetType must be 0 or 1, got %q", v)
+		}
 		at := domain.AssetType(a)
 		filter.AssetType = &at
 	}
 	if v := c.Query("status"); v != "" {
-		s, _ := strconv.Atoi(v)
+		s, err := strconv.Atoi(v)
+		if err != nil || s < 0 || s > 3 {
+			return filter, fmt.Errorf("status must be 0-3, got %q", v)
+		}
 		st := domain.OrderStatus(s)
 		filter.Status = &st
 	}
 	if v := c.Query("minPrice"); v != "" {
 		filter.MinPrice = domain.NewBigInt(nil)
-		filter.MinPrice.Int.SetString(v, 10)
+		if _, ok := filter.MinPrice.Int.SetString(v, 10); !ok {
+			return filter, fmt.Errorf("minPrice is not a valid integer, got %q", v)
+		}
 	}
 	if v := c.Query("maxPrice"); v != "" {
 		filter.MaxPrice = domain.NewBigInt(nil)
-		filter.MaxPrice.Int.SetString(v, 10)
+		if _, ok := filter.MaxPrice.Int.SetString(v, 10); !ok {
+			return filter, fmt.Errorf("maxPrice is not a valid integer, got %q", v)
+		}
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	if err != nil || pageSize < 1 {
+		pageSize = 20
+	}
 	if pageSize > 50 {
 		pageSize = 50
 	}
 	filter.Limit = pageSize
 	filter.Offset = (page - 1) * pageSize
 
-	return filter
+	return filter, nil
 }
 
 func extractErrorCode(errMsg string) string {
