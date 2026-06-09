@@ -6,11 +6,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+type MigrationConfig struct {
+	Enabled bool
+}
+
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Ethereum EthereumConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Redis     RedisConfig
+	Ethereum  EthereumConfig
+	Migration MigrationConfig
 }
 
 type ServerConfig struct {

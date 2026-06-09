@@ -21,6 +21,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 )
@@ -43,6 +46,19 @@ func main() {
 		logpkg.Logger.Fatal("database ping failed", zap.Error(err))
 	}
 	logpkg.Logger.Info("database connected")
+
+	// Run migrations.
+	if cfg.Migration.Enabled {
+		logpkg.Logger.Info("running database migrations")
+		m, err := migrate.New("file://migrations", cfg.Database.DSN())
+		if err != nil {
+			logpkg.Logger.Fatal("migration init failed", zap.Error(err))
+		}
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			logpkg.Logger.Fatal("migration failed", zap.Error(err))
+		}
+		logpkg.Logger.Info("migrations complete")
+	}
 
 	// Redis.
 	cacheSvc, err := service.NewCacheService(cfg.Redis.Addr)
