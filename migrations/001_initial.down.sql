@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS nft_metadata;
+DROP TABLE IF EXISTS collections;
+DROP TABLE IF EXISTS sync_cursor;
