@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
-	"log"
 	"time"
 
+	logpkg "nft-market-backend/internal/log"
 	"nft-market-backend/internal/repository"
+
+	"go.uber.org/zap"
 )
 
 // Scheduler runs periodic background tasks.
@@ -45,9 +47,9 @@ func (s *Scheduler) expireOrdersLoop(ctx context.Context) {
 		case <-ticker.C:
 			n, err := s.orderRepo.ExpireOrders()
 			if err != nil {
-				log.Printf("scheduler: expire orders: %v", err)
+				logpkg.Logger.Error("scheduler: expire orders failed", zap.Error(err))
 			} else if n > 0 {
-				log.Printf("scheduler: expired %d orders", n)
+				logpkg.Logger.Info("scheduler: expired orders", zap.Int64("count", n))
 			}
 		}
 	}
@@ -63,7 +65,7 @@ func (s *Scheduler) metadataRefreshLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if err := s.metadataSvc.RefreshStale(ctx); err != nil {
-				log.Printf("scheduler: metadata refresh: %v", err)
+				logpkg.Logger.Error("scheduler: metadata refresh failed", zap.Error(err))
 			}
 		}
 	}

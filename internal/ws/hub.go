@@ -2,12 +2,14 @@ package ws
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
+	logpkg "nft-market-backend/internal/log"
+
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 const (
@@ -147,7 +149,7 @@ func (h *Hub) Run() {
 func (h *Hub) Broadcast(collection string, msg Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("ws: marshal broadcast: %v", err)
+		logpkg.Logger.Error("ws: marshal broadcast failed", zap.Error(err))
 		return
 	}
 

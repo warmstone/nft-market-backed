@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/big"
 	"strings"
 	"sync"
 	"time"
 
 	"nft-market-backend/internal/domain"
+	logpkg "nft-market-backend/internal/log"
 	"nft-market-backend/internal/repository"
 	"nft-market-backend/internal/service"
 
@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"go.uber.org/zap"
 )
 
 var (
@@ -73,12 +74,12 @@ func NewWatcher(
 func (w *Watcher) Run(ctx context.Context) {
 	cursor, err := w.eventRepo.GetLastSyncedBlock(w.chainID)
 	if err != nil {
-		log.Printf("watcher: get cursor: %v", err)
+		logpkg.Logger.Error("watcher: get cursor failed", zap.Error(err))
 	}
 	if cursor == 0 {
 		latest, err := w.rpc.BlockNumber(ctx)
 		if err != nil {
-			log.Printf("watcher: get latest block: %v", err)
+			logpkg.Logger.Error("watcher: get latest block failed", zap.Error(err))
 			latest = 0
 		}
 		if latest > 100 {
@@ -103,7 +104,7 @@ func (w *Watcher) subscribeLoop(ctx context.Context) {
 		logCh := make(chan types.Log, 100)
 		sub, err := w.rpc.SubscribeLogs(ctx, logCh)
 		if err != nil {
-			log.Printf("watcher: subscribe: %v, retrying in 5s", err)
+			logpkg.Logger.Warn("watcher: subscribe failed, retrying", zap.Error(err))
 			select {
 			case <-ctx.Done():
 				return
@@ -112,7 +113,7 @@ func (w *Watcher) subscribeLoop(ctx context.Context) {
 			continue
 		}
 
-		log.Printf("watcher: subscribed to chain %d", w.chainID)
+		logpkg.Logger.Info("watcher: subscribed", zap.Int64("chain_id", w.chainID))
 
 	inner:
 		for {
@@ -120,7 +121,7 @@ func (w *Watcher) subscribeLoop(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case err := <-sub.Err():
-				log.Printf("watcher: subscription error: %v, reconnecting", err)
+				logpkg.Logger.Warn("watcher: subscription error, reconnecting", zap.Error(err))
 				break inner
 			case vLog := <-logCh:
 				w.mu.Lock()
@@ -148,7 +149,7 @@ func (w *Watcher) pollLoop(ctx context.Context) {
 
 			if idle {
 				if err := w.poll(ctx); err != nil {
-					log.Printf("watcher: poll: %v", err)
+					logpkg.Logger.Error("watcher: poll failed", zap.Error(err))
 				}
 			}
 		}
@@ -207,7 +208,7 @@ func (w *Watcher) processLoop(ctx context.Context) {
 			w.mu.Unlock()
 
 			if err := w.eventRepo.UpdateLastSyncedBlock(w.chainID, cursor); err != nil {
-				log.Printf("watcher: save cursor: %v", err)
+				logpkg.Logger.Error("watcher: save cursor failed", zap.Error(err))
 			}
 		}
 	}
@@ -216,7 +217,7 @@ func (w *Watcher) processLoop(ctx context.Context) {
 func (w *Watcher) handleLog(ctx context.Context, vLog types.Log) {
 	event, err := w.parseEvent(vLog)
 	if err != nil {
-		log.Printf("watcher: parse event: %v", err)
+		logpkg.Logger.Error("watcher: parse event failed", zap.Error(err))
 		return
 	}
 	if event == nil {
@@ -225,7 +226,7 @@ func (w *Watcher) handleLog(ctx context.Context, vLog types.Log) {
 
 	exists, err := w.eventRepo.EventExists(uint64(vLog.BlockNumber), uint(vLog.TxIndex), uint(vLog.Index))
 	if err != nil {
-		log.Printf("watcher: check exists: %v", err)
+		logpkg.Logger.Error("watcher: check exists failed", zap.Error(err))
 		return
 	}
 	if exists {
@@ -233,7 +234,7 @@ func (w *Watcher) handleLog(ctx context.Context, vLog types.Log) {
 	}
 
 	if err := w.waitConfirmations(ctx, uint64(vLog.BlockNumber)); err != nil {
-		log.Printf("watcher: wait confirmations: %v", err)
+		logpkg.Logger.Error("watcher: wait confirmations failed", zap.Error(err))
 		return
 	}
 
@@ -253,12 +254,12 @@ func (w *Watcher) handleLog(ctx context.Context, vLog types.Log) {
 	}
 
 	if err := w.eventRepo.InsertEvent(event); err != nil {
-		log.Printf("watcher: insert event: %v", err)
+		logpkg.Logger.Error("watcher: insert event failed", zap.Error(err))
 		return
 	}
 
 	if err := w.eventSvc.Handle(event); err != nil {
-		log.Printf("watcher: handle event: %v", err)
+		logpkg.Logger.Error("watcher: handle event failed", zap.Error(err))
 	}
 
 	w.mu.Lock()

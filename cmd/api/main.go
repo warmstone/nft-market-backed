@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +11,7 @@ import (
 
 	"nft-market-backend/internal/config"
 	"nft-market-backend/internal/handler"
+	logpkg "nft-market-backend/internal/log"
 	"nft-market-backend/internal/middleware"
 	"nft-market-backend/internal/repository"
 	"nft-market-backend/internal/rpc"
@@ -22,35 +22,39 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"go.uber.org/zap"
 )
 
 func main() {
+	logpkg.Init(os.Getenv("LOG_LEVEL"))
+	defer logpkg.Sync()
+
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		logpkg.Logger.Fatal("config load failed", zap.Error(err))
 	}
 
 	// Database.
 	db, err := sql.Open("postgres", cfg.Database.DSN())
 	if err != nil {
-		log.Fatalf("database open: %v", err)
+		logpkg.Logger.Fatal("database open failed", zap.Error(err))
 	}
 	if err := db.Ping(); err != nil {
-		log.Fatalf("database ping: %v", err)
+		logpkg.Logger.Fatal("database ping failed", zap.Error(err))
 	}
-	log.Println("database connected")
+	logpkg.Logger.Info("database connected")
 
 	// Redis.
 	cacheSvc, err := service.NewCacheService(cfg.Redis.Addr)
 	if err != nil {
-		log.Fatalf("redis: %v", err)
+		logpkg.Logger.Fatal("redis connect failed", zap.Error(err))
 	}
-	log.Println("redis connected")
+	logpkg.Logger.Info("redis connected")
 
 	// RPC client.
 	rpcClient, err := rpc.NewClient(cfg.Ethereum.RPCURL, cfg.Ethereum.ChainID)
 	if err != nil {
-		log.Fatalf("rpc client: %v", err)
+		logpkg.Logger.Fatal("rpc client failed", zap.Error(err))
 	}
 	defer rpcClient.Close()
 
@@ -142,9 +146,9 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("api listening on :%d", cfg.Server.Port)
+		logpkg.Logger.Info("api listening", zap.Int("port", cfg.Server.Port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server: %v", err)
+			logpkg.Logger.Fatal("server failed", zap.Error(err))
 		}
 	}()
 
@@ -153,7 +157,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("shutting down...")
+	logpkg.Logger.Info("shutting down...")
 	cancel()
 	srv.Shutdown(context.Background())
 	db.Close()
