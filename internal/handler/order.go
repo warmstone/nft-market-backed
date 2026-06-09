@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -178,6 +179,12 @@ func parseOrderFilter(c *gin.Context) domain.OrderFilter {
 	}
 	if v := c.Query("paymentToken"); v != "" {
 		filter.PaymentToken = v
+	}
+	if v := c.Query("tokenId"); v != "" {
+		tokenID := new(big.Int)
+		if _, ok := tokenID.SetString(v, 10); ok {
+			filter.TokenID = &domain.BigInt{Int: tokenID}
+		}
 	}
 	if v := c.Query("side"); v != "" {
 		s, _ := strconv.Atoi(v)

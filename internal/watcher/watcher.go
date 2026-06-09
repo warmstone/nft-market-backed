@@ -15,16 +15,17 @@ import (
 	"nft-market-backend/internal/service"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
-	topicOrderFulfilled     = eventSigHash("OrderFulfilled(bytes32,address,address,uint256,uint256,uint128)")
-	topicOrderCancelled     = eventSigHash("OrderCancelled(bytes32,address)")
+	topicOrderFulfilled     = eventSigHash("OrderFulfilled(bytes32,uint256,address,address,address,address,uint8,uint8,address,uint256,uint256,address,uint128,uint256,uint256)")
+	topicOrderCancelled     = eventSigHash("OrderCancelled(address,uint256)")
 	topicCounterIncremented = eventSigHash("CounterIncremented(address,uint256)")
-	topicCollectionUpdated  = eventSigHash("CollectionUpdated(address,bool)")
+	topicCollectionUpdated  = eventSigHash("CollectionUpdated(address,bool,bool)")
 )
 
 func eventSigHash(s string) string {
@@ -345,44 +346,119 @@ func (w *Watcher) waitConfirmations(ctx context.Context, blockNum uint64) error 
 
 func parseOrderFulfilled(vLog types.Log) (domain.OrderFulfilledData, error) {
 	var data domain.OrderFulfilledData
-	data.OrderHash = vLog.Topics[1].Hex()
-	data.Maker = common.BytesToAddress(vLog.Topics[2].Bytes()).Hex()
-	data.Taker = common.BytesToAddress(vLog.Topics[3].Bytes()).Hex()
-	if len(vLog.Data) >= 96 {
-		data.TokenID = new(big.Int).SetBytes(vLog.Data[0:32]).String()
-		data.Amount = new(big.Int).SetBytes(vLog.Data[32:64]).String()
-		data.Price = new(big.Int).SetBytes(vLog.Data[64:96]).String()
+	if len(vLog.Topics) < 4 {
+		return data, fmt.Errorf("OrderFulfilled topics: expected at least 4, got %d", len(vLog.Topics))
 	}
+	data.OrderHash = vLog.Topics[1].Hex()
+	data.Salt = new(big.Int).SetBytes(vLog.Topics[2].Bytes()).String()
+	data.Maker = common.BytesToAddress(vLog.Topics[3].Bytes()).Hex()
+
+	values, err := orderFulfilledABIArgs().Unpack(vLog.Data)
+	if err != nil {
+		return data, fmt.Errorf("unpack OrderFulfilled: %w", err)
+	}
+	data.Taker = values[0].(common.Address).Hex()
+	data.Seller = values[1].(common.Address).Hex()
+	data.Buyer = values[2].(common.Address).Hex()
+	data.Side = values[3].(uint8)
+	data.Kind = values[4].(uint8)
+	data.Collection = values[5].(common.Address).Hex()
+	data.TokenID = abiUintString(values[6])
+	data.Amount = abiUintString(values[7])
+	data.PaymentToken = values[8].(common.Address).Hex()
+	data.Price = abiUintString(values[9])
+	data.ProtocolFee = abiUintString(values[10])
+	data.RoyaltyFee = abiUintString(values[11])
 	return data, nil
 }
 
 func parseOrderCancelled(vLog types.Log) (domain.OrderCancelledData, error) {
 	var data domain.OrderCancelledData
-	data.OrderHash = vLog.Topics[1].Hex()
-	data.Maker = common.BytesToAddress(vLog.Topics[2].Bytes()).Hex()
+	if len(vLog.Topics) < 3 {
+		return data, fmt.Errorf("OrderCancelled topics: expected at least 3, got %d", len(vLog.Topics))
+	}
+	data.Maker = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
+	data.Salt = new(big.Int).SetBytes(vLog.Topics[2].Bytes()).String()
 	return data, nil
 }
 
 func parseCounterIncremented(vLog types.Log) (domain.CounterIncrementedData, error) {
 	var data domain.CounterIncrementedData
-	data.Maker = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
-	if len(vLog.Data) >= 32 {
-		data.Counter = new(big.Int).SetBytes(vLog.Data[0:32]).String()
+	if len(vLog.Topics) < 2 {
+		return data, fmt.Errorf("CounterIncremented topics: expected at least 2, got %d", len(vLog.Topics))
 	}
+	data.Maker = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
+	values, err := singleUint256ABIArgs().Unpack(vLog.Data)
+	if err != nil {
+		return data, fmt.Errorf("unpack CounterIncremented: %w", err)
+	}
+	data.Counter = abiUintString(values[0])
 	return data, nil
 }
 
 func parseCollectionUpdated(vLog types.Log) (struct {
 	Collection string `json:"collection"`
+	Allowed    bool   `json:"allowed"`
 	Blocked    bool   `json:"blocked"`
 }, error) {
 	var data struct {
 		Collection string `json:"collection"`
+		Allowed    bool   `json:"allowed"`
 		Blocked    bool   `json:"blocked"`
 	}
-	data.Collection = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
-	if len(vLog.Data) >= 32 {
-		data.Blocked = new(big.Int).SetBytes(vLog.Data[0:32]).Cmp(big.NewInt(1)) == 0
+	if len(vLog.Topics) < 2 {
+		return data, fmt.Errorf("CollectionUpdated topics: expected at least 2, got %d", len(vLog.Topics))
 	}
+	data.Collection = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
+	values, err := collectionUpdatedABIArgs().Unpack(vLog.Data)
+	if err != nil {
+		return data, fmt.Errorf("unpack CollectionUpdated: %w", err)
+	}
+	data.Allowed = values[0].(bool)
+	data.Blocked = values[1].(bool)
 	return data, nil
+}
+
+func orderFulfilledABIArgs() abi.Arguments {
+	addressT, _ := abi.NewType("address", "", nil)
+	uint8T, _ := abi.NewType("uint8", "", nil)
+	uint128T, _ := abi.NewType("uint128", "", nil)
+	uint256T, _ := abi.NewType("uint256", "", nil)
+	return abi.Arguments{
+		{Name: "taker", Type: addressT},
+		{Name: "seller", Type: addressT},
+		{Name: "buyer", Type: addressT},
+		{Name: "side", Type: uint8T},
+		{Name: "kind", Type: uint8T},
+		{Name: "collection", Type: addressT},
+		{Name: "tokenId", Type: uint256T},
+		{Name: "amount", Type: uint256T},
+		{Name: "paymentToken", Type: addressT},
+		{Name: "finalPrice", Type: uint128T},
+		{Name: "protocolFee", Type: uint256T},
+		{Name: "royaltyFee", Type: uint256T},
+	}
+}
+
+func singleUint256ABIArgs() abi.Arguments {
+	uint256T, _ := abi.NewType("uint256", "", nil)
+	return abi.Arguments{{Type: uint256T}}
+}
+
+func collectionUpdatedABIArgs() abi.Arguments {
+	boolT, _ := abi.NewType("bool", "", nil)
+	return abi.Arguments{{Name: "allowed", Type: boolT}, {Name: "blocked", Type: boolT}}
+}
+
+func abiUintString(v interface{}) string {
+	switch n := v.(type) {
+	case *big.Int:
+		return n.String()
+	case uint8:
+		return new(big.Int).SetUint64(uint64(n)).String()
+	case uint64:
+		return new(big.Int).SetUint64(n).String()
+	default:
+		return fmt.Sprintf("%v", n)
+	}
 }

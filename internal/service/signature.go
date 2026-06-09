@@ -8,8 +8,8 @@ import (
 
 	"nft-market-backend/internal/domain"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
@@ -44,13 +44,17 @@ var OrderTypes = apitypes.Types{
 	},
 }
 
+var orderTypeHash = crypto.Keccak256Hash([]byte(
+	"Order(address maker,address taker,uint8 side,uint8 kind,uint8 assetType,address collection,uint256 tokenId,uint256 amount,address paymentToken,uint128 price,uint128 startPrice,uint64 startTime,uint64 endTime,uint256 salt,uint256 counter,bytes32 extra)",
+))
+
 // ErrInvalidSignature is returned when ECDSA recovery doesn't match the maker.
 var ErrInvalidSignature = fmt.Errorf("invalid signature: recovered signer does not match maker")
 
 // SignatureService verifies EIP-712 typed data signatures.
 type SignatureService struct {
-	ChainID            *big.Int
-	VerifyingContract  common.Address
+	ChainID           *big.Int
+	VerifyingContract common.Address
 }
 
 // NewSignatureService creates a SignatureService.
@@ -74,36 +78,20 @@ func (s *SignatureService) Verify(order *domain.Order) error {
 		return fmt.Errorf("signature length %d, expected 65", len(sig))
 	}
 
-	// Enforce low-s (EIP-2).
-	if sig[33] > 1 {
-		return fmt.Errorf("invalid recovery id v: %d", sig[64])
+	recoveryID, err := normalizeRecoveryID(sig[64])
+	if err != nil {
+		return err
 	}
-	if !crypto.ValidateSignatureValues(sig[64], new(big.Int).SetBytes(sig[0:32]), new(big.Int).SetBytes(sig[32:64]), false) {
+	if !crypto.ValidateSignatureValues(recoveryID, new(big.Int).SetBytes(sig[0:32]), new(big.Int).SetBytes(sig[32:64]), false) {
 		return fmt.Errorf("signature s value is not in low half")
 	}
 
-	domain := apitypes.TypedDataDomain{
-		Name:              "NFTMarketExchange",
-		Version:           "1",
-		ChainId:           math.NewHexOrDecimal256(s.ChainID.Int64()),
-		VerifyingContract: s.VerifyingContract.Hex(),
-	}
-
-	msg := s.buildMessage(order)
-	typedData := apitypes.TypedData{
-		Types:       OrderTypes,
-		PrimaryType: "Order",
-		Domain:      domain,
-		Message:     msg,
-	}
-
-	hash, _, err := apitypes.TypedDataAndHash(typedData)
+	hash, err := s.TypedDataHash(order)
 	if err != nil {
 		return fmt.Errorf("typed data hash: %w", err)
 	}
 
-	// Transform V from [27,28] to [0,1] for crypto.Ecrecover.
-	sig[64] -= 27
+	sig[64] = recoveryID
 
 	pubKey, err := crypto.Ecrecover(hash, sig)
 	if err != nil {
@@ -121,6 +109,89 @@ func (s *SignatureService) Verify(order *domain.Order) error {
 	}
 
 	return nil
+}
+
+// TypedDataHash returns the EIP-712 digest that wallets sign and the contract
+// verifies: keccak256("\x19\x01" || domainSeparator || LibOrder.hash(order)).
+func (s *SignatureService) TypedDataHash(order *domain.Order) ([]byte, error) {
+	structHash, err := OrderStructHash(order)
+	if err != nil {
+		return nil, err
+	}
+
+	domainSeparator := crypto.Keccak256(
+		bytes32(crypto.Keccak256Hash([]byte("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"))),
+		bytes32(crypto.Keccak256Hash([]byte("NFTMarketExchange"))),
+		bytes32(crypto.Keccak256Hash([]byte("1"))),
+		uint256Bytes(s.ChainID),
+		addressBytes(s.VerifyingContract),
+	)
+
+	return crypto.Keccak256(
+		[]byte{0x19, 0x01},
+		domainSeparator,
+		structHash.Bytes(),
+	), nil
+}
+
+// OrderStructHash mirrors Solidity LibOrder.hash(order).
+func OrderStructHash(order *domain.Order) (common.Hash, error) {
+	addressT, _ := abi.NewType("address", "", nil)
+	uint8T, _ := abi.NewType("uint8", "", nil)
+	uint64T, _ := abi.NewType("uint64", "", nil)
+	uint128T, _ := abi.NewType("uint128", "", nil)
+	uint256T, _ := abi.NewType("uint256", "", nil)
+	bytes32T, _ := abi.NewType("bytes32", "", nil)
+
+	args := abi.Arguments{
+		{Type: bytes32T},
+		{Type: addressT},
+		{Type: addressT},
+		{Type: uint8T},
+		{Type: uint8T},
+		{Type: uint8T},
+		{Type: addressT},
+		{Type: uint256T},
+		{Type: uint256T},
+		{Type: addressT},
+		{Type: uint128T},
+		{Type: uint128T},
+		{Type: uint64T},
+		{Type: uint64T},
+		{Type: uint256T},
+		{Type: uint256T},
+		{Type: bytes32T},
+	}
+
+	extra, err := hexToBytes32(defaultExtra(order.Extra))
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("extra: %w", err)
+	}
+
+	packed, err := args.Pack(
+		orderTypeHash,
+		common.HexToAddress(order.Maker),
+		common.HexToAddress(defaultAddress(order.Taker)),
+		uint8(order.Side),
+		uint8(order.Kind),
+		uint8(order.AssetType),
+		common.HexToAddress(order.Collection),
+		bigIntOrZero(order.TokenID),
+		bigIntOrZero(order.Amount),
+		common.HexToAddress(defaultAddress(order.PaymentToken)),
+		bigIntOrZero(order.Price),
+		bigIntOrZero(order.StartPrice),
+		order.StartTime,
+		order.EndTime,
+		bigIntOrZero(order.Salt),
+		bigIntOrZero(order.Counter),
+		extra,
+	)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return crypto.Keccak256Hash(packed), nil
 }
 
 // buildMessage converts a domain.Order into the TypedDataMessage expected by go-ethereum.
@@ -156,4 +227,61 @@ func (s *SignatureService) buildMessage(order *domain.Order) apitypes.TypedDataM
 		"counter":      order.Counter.Int,
 		"extra":        extra,
 	}
+}
+
+func normalizeRecoveryID(v byte) (byte, error) {
+	switch v {
+	case 0, 1:
+		return v, nil
+	case 27, 28:
+		return v - 27, nil
+	default:
+		return 0, fmt.Errorf("invalid recovery id v: %d", v)
+	}
+}
+
+func defaultAddress(s string) string {
+	if s == "" {
+		return "0x0000000000000000000000000000000000000000"
+	}
+	return s
+}
+
+func defaultExtra(s string) string {
+	if s == "" {
+		return "0x0000000000000000000000000000000000000000000000000000000000000000"
+	}
+	return s
+}
+
+func bigIntOrZero(b *domain.BigInt) *big.Int {
+	if b == nil || b.Int == nil {
+		return new(big.Int)
+	}
+	return b.Int
+}
+
+func hexToBytes32(s string) ([32]byte, error) {
+	raw, err := hex.DecodeString(strings.TrimPrefix(s, "0x"))
+	if err != nil {
+		return [32]byte{}, err
+	}
+	if len(raw) != 32 {
+		return [32]byte{}, fmt.Errorf("expected 32 bytes, got %d", len(raw))
+	}
+	var out [32]byte
+	copy(out[:], raw)
+	return out, nil
+}
+
+func bytes32(h common.Hash) []byte {
+	return h.Bytes()
+}
+
+func uint256Bytes(v *big.Int) []byte {
+	return common.LeftPadBytes(v.Bytes(), 32)
+}
+
+func addressBytes(a common.Address) []byte {
+	return common.LeftPadBytes(a.Bytes(), 32)
 }

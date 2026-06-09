@@ -61,14 +61,18 @@ func (s *EventService) handleOrderFulfilled(event *domain.ContractEvent) error {
 	}
 
 	order, _ := s.orderRepo.FindByHash(data.OrderHash)
+	collection := data.Collection
 	if order != nil {
-		_ = s.cache.InvalidateOrders(context.Background(), order.Collection)
-		s.broadcast(order.Collection, "order:filled", map[string]string{
-			"orderHash":  data.OrderHash,
-			"txHash":     event.TxHash,
-			"finalPrice": data.Price,
-		})
+		collection = order.Collection
 	}
+	if collection != "" {
+		_ = s.cache.InvalidateOrders(context.Background(), collection)
+	}
+	s.broadcast(collection, "order:filled", map[string]string{
+		"orderHash":  data.OrderHash,
+		"txHash":     event.TxHash,
+		"finalPrice": data.Price,
+	})
 	return nil
 }
 
@@ -78,14 +82,18 @@ func (s *EventService) handleOrderCancelled(event *domain.ContractEvent) error {
 		return fmt.Errorf("unmarshal OrderCancelled: %w", err)
 	}
 
-	order, _ := s.orderRepo.FindByHash(data.OrderHash)
-	if order != nil {
-		_ = s.orderRepo.UpdateStatus(data.OrderHash, domain.Cancelled)
-		_ = s.cache.InvalidateOrders(context.Background(), order.Collection)
-		s.broadcast(order.Collection, "order:cancelled", map[string]string{
-			"maker": data.Maker,
-		})
+	salt := new(big.Int)
+	if _, ok := salt.SetString(data.Salt, 10); !ok {
+		return fmt.Errorf("invalid cancellation salt: %s", data.Salt)
 	}
+	if err := s.orderRepo.CancelByMakerSalt(data.Maker, salt); err != nil {
+		return fmt.Errorf("cancel by maker+salt: %w", err)
+	}
+
+	s.hub.Broadcast("", ws.Message{
+		Type:    "order:cancelled",
+		Payload: mustMarshal(map[string]string{"maker": data.Maker, "salt": data.Salt}),
+	})
 	return nil
 }
 
@@ -135,4 +143,9 @@ func (s *EventService) handleCollectionUpdated(event *domain.ContractEvent) erro
 func (s *EventService) broadcast(collection string, eventType string, payload interface{}) {
 	data, _ := json.Marshal(payload)
 	s.hub.Broadcast(collection, ws.Message{Type: eventType, Payload: data})
+}
+
+func mustMarshal(payload interface{}) json.RawMessage {
+	data, _ := json.Marshal(payload)
+	return data
 }

@@ -19,13 +19,23 @@ type Collection struct {
 
 // NFTMetadata stores off-chain metadata for an individual NFT token.
 type NFTMetadata struct {
-	Collection string          `json:"collection"`
-	TokenID    *BigInt         `json:"tokenId"`
-	Name       string          `json:"name"`
-	Description string         `json:"description"`
-	ImageURL   string          `json:"imageUrl"`
-	Attributes json.RawMessage `json:"attributes,omitempty"`
-	SyncedAt   time.Time       `json:"syncedAt"`
+	Collection  string          `json:"collection"`
+	TokenID     *BigInt         `json:"tokenId"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	ImageURL    string          `json:"imageUrl"`
+	Attributes  json.RawMessage `json:"attributes,omitempty"`
+	SyncedAt    time.Time       `json:"syncedAt"`
+}
+
+// AssetDetail is the marketplace-facing view of a single NFT.
+type AssetDetail struct {
+	Collection *Collection  `json:"collection"`
+	Metadata   *NFTMetadata `json:"metadata"`
+	TokenID    *BigInt      `json:"tokenId"`
+	Listings   []Order      `json:"listings"`
+	Offers     []Order      `json:"offers"`
+	Activity   []Order      `json:"activity"`
 }
 
 // CollectionDetail extends Collection with market-level aggregates.

@@ -4,10 +4,10 @@ import "encoding/json"
 
 // Event name constants for known contract events.
 const (
-	EventOrderFulfilled      = "OrderFulfilled"
-	EventOrderCancelled      = "OrderCancelled"
-	EventCounterIncremented  = "CounterIncremented"
-	EventCollectionUpdated   = "CollectionUpdated"
+	EventOrderFulfilled       = "OrderFulfilled"
+	EventOrderCancelled       = "OrderCancelled"
+	EventCounterIncremented   = "CounterIncremented"
+	EventCollectionUpdated    = "CollectionUpdated"
 	EventOwnershipTransferred = "OwnershipTransferred"
 )
 
@@ -25,18 +25,27 @@ type ContractEvent struct {
 
 // OrderFulfilledData is the event data emitted when an order is matched and filled.
 type OrderFulfilledData struct {
-	OrderHash string `json:"orderHash"`
-	Maker     string `json:"maker"`
-	Taker     string `json:"taker"`
-	TokenID   string `json:"tokenId"`  // decimal string (*big.Int)
-	Amount    string `json:"amount"`   // decimal string (*big.Int)
-	Price     string `json:"price"`    // decimal string (*big.Int)
+	OrderHash    string `json:"orderHash"`
+	Salt         string `json:"salt"` // decimal string (*big.Int)
+	Maker        string `json:"maker"`
+	Taker        string `json:"taker"`
+	Seller       string `json:"seller"`
+	Buyer        string `json:"buyer"`
+	Side         uint8  `json:"side"`
+	Kind         uint8  `json:"kind"`
+	Collection   string `json:"collection"`
+	TokenID      string `json:"tokenId"` // decimal string (*big.Int)
+	Amount       string `json:"amount"`  // decimal string (*big.Int)
+	PaymentToken string `json:"paymentToken"`
+	Price        string `json:"price"` // decimal string (*big.Int)
+	ProtocolFee  string `json:"protocolFee"`
+	RoyaltyFee   string `json:"royaltyFee"`
 }
 
 // OrderCancelledData is the event data emitted when an order is cancelled by its maker.
 type OrderCancelledData struct {
-	OrderHash string `json:"orderHash"`
-	Maker     string `json:"maker"`
+	Maker string `json:"maker"`
+	Salt  string `json:"salt"` // decimal string (*big.Int)
 }
 
 // CounterIncrementedData is the event data emitted when a maker increments their nonce/counter.

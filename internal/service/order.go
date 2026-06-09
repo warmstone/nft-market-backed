@@ -9,7 +9,6 @@ import (
 	"nft-market-backend/internal/repository"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // OrderService handles order submission, querying, and response formatting.
@@ -110,8 +109,11 @@ func (s *OrderService) Submit(req *domain.SubmitOrderRequest) (*domain.Order, er
 		}
 	}
 
-	// 9. Compute order hash.
-	orderHash := crypto.Keccak256Hash([]byte(orderToHashInput(req)))
+	// 9. Compute the same struct hash Solidity uses in LibOrder.hash(order).
+	orderHash, err := OrderStructHash(order)
+	if err != nil {
+		return nil, fmt.Errorf("ORDER_HASH_FAILED: %w", err)
+	}
 	order.OrderHash = orderHash.Hex()
 
 	// 10. Persist.
@@ -175,11 +177,14 @@ func statusPtr(s domain.OrderStatus) *domain.OrderStatus {
 }
 
 func requestToOrder(req *domain.SubmitOrderRequest, chainID int64) *domain.Order {
-	tokenID, _ := new(big.Int).SetString(req.TokenID, 10)
-	amount, _ := new(big.Int).SetString(req.Amount, 10)
-	price, _ := new(big.Int).SetString(req.Price, 10)
-	startPrice, _ := new(big.Int).SetString(req.StartPrice, 10)
-	salt, _ := new(big.Int).SetString(req.Salt, 10)
+	tokenID := parseBigInt(req.TokenID)
+	amount := parseBigInt(req.Amount)
+	price := parseBigInt(req.Price)
+	startPrice := parseBigInt(req.StartPrice)
+	if startPrice.Sign() == 0 {
+		startPrice = new(big.Int).Set(price)
+	}
+	salt := parseBigInt(req.Salt)
 
 	taker := req.Taker
 	if taker == "" {
@@ -188,6 +193,10 @@ func requestToOrder(req *domain.SubmitOrderRequest, chainID int64) *domain.Order
 	paymentToken := req.PaymentToken
 	if paymentToken == "" {
 		paymentToken = "0x0000000000000000000000000000000000000000"
+	}
+	extra := req.Extra
+	if extra == "" {
+		extra = "0x0000000000000000000000000000000000000000000000000000000000000000"
 	}
 
 	counter := int64(0) // Server fills this from DB on persistence if needed.
@@ -208,7 +217,7 @@ func requestToOrder(req *domain.SubmitOrderRequest, chainID int64) *domain.Order
 		EndTime:      req.EndTime,
 		Salt:         &domain.BigInt{Int: salt},
 		Counter:      &domain.BigInt{Int: big.NewInt(counter)},
-		Extra:        req.Extra,
+		Extra:        extra,
 		Status:       domain.Active,
 		Signature:    req.Signature,
 		CreatedAt:    time.Now(),
@@ -216,11 +225,10 @@ func requestToOrder(req *domain.SubmitOrderRequest, chainID int64) *domain.Order
 	}
 }
 
-func orderToHashInput(req *domain.SubmitOrderRequest) string {
-	return fmt.Sprintf("%s|%s|%d|%d|%d|%s|%s|%s|%s|%s|%s|%d|%d|%s|%d|%s",
-		req.Maker, req.Taker, req.Side, req.Kind, req.AssetType,
-		req.Collection, req.TokenID, req.Amount, req.PaymentToken,
-		req.Price, req.StartPrice, req.StartTime, req.EndTime,
-		req.Salt, 0, req.Extra,
-	)
+func parseBigInt(s string) *big.Int {
+	i := new(big.Int)
+	if s != "" {
+		i.SetString(s, 10)
+	}
+	return i
 }

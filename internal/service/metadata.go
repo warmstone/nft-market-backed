@@ -47,8 +47,10 @@ func NewMetadataService(
 
 // Enqueue adds a metadata fetch job to the queue. Non-blocking; drops if full.
 func (s *MetadataService) Enqueue(collection string, tokenID string) {
-	tid := new(domain.BigInt)
-	tid.Int.SetString(tokenID, 10)
+	tid := domain.NewBigInt(nil)
+	if _, ok := tid.Int.SetString(tokenID, 10); !ok {
+		return
+	}
 
 	select {
 	case s.queue <- fetchJob{Collection: collection, TokenID: tid}:
@@ -149,7 +151,7 @@ func (s *MetadataService) fetchOne(ctx context.Context, collection string, token
 func (s *MetadataService) FetchCollection(ctx context.Context, address string) error {
 	addr := common.HexToAddress(address)
 
-	name, _ := s.callString(ctx, addr, "0x06fdde03") // name()
+	name, _ := s.callString(ctx, addr, "0x06fdde03")   // name()
 	symbol, _ := s.callString(ctx, addr, "0x95d89b41") // symbol()
 
 	c := &domain.Collection{
@@ -216,4 +218,3 @@ func (s *MetadataService) resolveURI(uri string) string {
 	}
 	return uri
 }
-

@@ -97,7 +97,7 @@ func main() {
 
 	// Handlers.
 	orderH := handler.NewOrderHandler(orderSvc, metadataSvc)
-	collectionH := handler.NewCollectionHandler(collectionRepo, orderRepo)
+	collectionH := handler.NewCollectionHandler(collectionRepo, orderRepo, metadataSvc)
 	wsH := handler.NewWSHandler(hub)
 	graphqlH := handler.NewGraphQLHandler()
 
@@ -116,6 +116,7 @@ func main() {
 
 		api.GET("/collections", collectionH.List)
 		api.GET("/collections/:address", collectionH.Get)
+		api.GET("/assets/:collection/:tokenId", collectionH.Asset)
 
 		api.GET("/users/:address/orders", orderH.UserOrders)
 
