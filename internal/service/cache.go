@@ -23,6 +23,11 @@ func NewCacheService(addr string) (*CacheService, error) {
 	return &CacheService{rdb: rdb}, nil
 }
 
+// Client returns the underlying Redis client.
+func (c *CacheService) Client() *redis.Client {
+	return c.rdb
+}
+
 // Get unmarshals a cached value into dest. Returns redis.Nil if key doesn't exist.
 func (c *CacheService) Get(ctx context.Context, key string, dest interface{}) error {
 	data, err := c.rdb.Get(ctx, key).Bytes()
