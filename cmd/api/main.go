@@ -29,8 +29,12 @@ import (
 	"nft-market-backend/internal/watcher"
 	"nft-market-backend/internal/ws"
 
+	_ "nft-market-backend/docs"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -162,6 +166,9 @@ func main() {
 	healthH := handler.NewHealthHandler(db, cacheSvc.Client(), rpcClient)
 	router.GET("/health", healthH.Health)
 	router.GET("/ready", healthH.Ready)
+
+	// Swagger UI.
+	router.GET("/api/v1/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Auth routes (no auth required).
 	auth := router.Group("/api/v1/auth")

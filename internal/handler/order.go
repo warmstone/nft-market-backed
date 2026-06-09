@@ -24,6 +24,16 @@ func NewOrderHandler(orderSvc *service.OrderService, metadataSvc *service.Metada
 }
 
 // Submit handles POST /api/v1/orders.
+// @Summary      Submit signed order
+// @Description  Validates EIP-712 signature and persists a new order to the order book
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body domain.SubmitOrderRequest true "Order submission payload"
+// @Success      201 {object} object{orderHash=string,status=string}
+// @Failure      400 {object} domain.ErrorResponse
+// @Router       /orders [post]
 func (h *OrderHandler) Submit(c *gin.Context) {
 	var req domain.SubmitOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -53,6 +63,25 @@ func (h *OrderHandler) Submit(c *gin.Context) {
 }
 
 // List handles GET /api/v1/orders.
+// @Summary      List orders
+// @Description  Returns paginated orders with optional filters (collection, maker, side, kind, status, price range)
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Param        collection   query  string  false  "Collection address"
+// @Param        maker        query  string  false  "Maker address"
+// @Param        side         query  int     false  "Order side (0=Sell, 1=Buy)"
+// @Param        kind         query  int     false  "Order kind (0-4)"
+// @Param        assetType    query  int     false  "Asset type (0=ERC721, 1=ERC1155)"
+// @Param        status       query  int     false  "Order status (0-3)"
+// @Param        minPrice     query  string  false  "Minimum price (decimal string)"
+// @Param        maxPrice     query  string  false  "Maximum price (decimal string)"
+// @Param        page         query  int     false  "Page number (default: 1)"
+// @Param        pageSize     query  int     false  "Page size (default: 20, max: 50)"
+// @Success      200  {object}  object{orders=[]domain.Order,total=int,page=int,pageSize=int}
+// @Failure      400  {object}  domain.ErrorResponse
+// @Failure      500  {object}  domain.ErrorResponse
+// @Router       /orders [get]
 func (h *OrderHandler) List(c *gin.Context) {
 	filter, err := parseOrderFilter(c)
 	if err != nil {
@@ -80,6 +109,16 @@ func (h *OrderHandler) List(c *gin.Context) {
 }
 
 // Get handles GET /api/v1/orders/:hash.
+// @Summary      Get order by hash
+// @Description  Returns a single order by its order hash
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Param        hash  path  string  true  "Order hash"
+// @Success      200   {object}  domain.Order
+// @Failure      404   {object}  domain.ErrorResponse
+// @Failure      500   {object}  domain.ErrorResponse
+// @Router       /orders/{hash} [get]
 func (h *OrderHandler) Get(c *gin.Context) {
 	hash := c.Param("hash")
 	order, err := h.orderSvc.GetByHash(hash)
@@ -102,6 +141,18 @@ func (h *OrderHandler) Get(c *gin.Context) {
 }
 
 // Best handles GET /api/v1/orders/best.
+// @Summary      Get best order
+// @Description  Returns the best (lowest) sell or buy order for a collection
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Param        collection  query  string  true   "Collection address"
+// @Param        side        query  int     false  "Order side (0=Sell, 1=Buy, default: 0)"
+// @Success      200  {object}  domain.Order
+// @Failure      400  {object}  domain.ErrorResponse
+// @Failure      404  {object}  domain.ErrorResponse
+// @Failure      500  {object}  domain.ErrorResponse
+// @Router       /orders/best [get]
 func (h *OrderHandler) Best(c *gin.Context) {
 	collection := c.Query("collection")
 	sideStr := c.Query("side")
@@ -139,6 +190,18 @@ func (h *OrderHandler) Best(c *gin.Context) {
 }
 
 // UserOrders handles GET /api/v1/users/:address/orders.
+// @Summary      Get user orders
+// @Description  Returns all orders for a given user address, optionally filtered by status
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        address  path   string  true   "User wallet address"
+// @Param        status   query  int     false  "Order status filter (0=Active, 1=Filled, 2=Cancelled, 3=Expired)"
+// @Success      200  {object}  object{orders=[]domain.Order}
+// @Failure      400  {object}  domain.ErrorResponse
+// @Failure      500  {object}  domain.ErrorResponse
+// @Router       /users/{address}/orders [get]
 func (h *OrderHandler) UserOrders(c *gin.Context) {
 	address := c.Param("address")
 	var status *domain.OrderStatus

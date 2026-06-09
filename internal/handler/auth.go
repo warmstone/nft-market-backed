@@ -17,6 +17,15 @@ func NewAuthHandler(authSvc *service.AuthService) *AuthHandler {
 	return &AuthHandler{authSvc: authSvc}
 }
 
+// @Summary      Get auth challenge
+// @Description  Generates a challenge message for the given wallet address to sign
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        address  query  string  true  "Wallet address"
+// @Success      200  {object}  domain.AuthChallenge
+// @Failure      400  {object}  domain.ErrorResponse
+// @Router       /auth/challenge [get]
 func (h *AuthHandler) Challenge(c *gin.Context) {
 	address := c.Query("address")
 	if address == "" {
@@ -36,6 +45,16 @@ func (h *AuthHandler) Challenge(c *gin.Context) {
 	c.JSON(http.StatusOK, challenge)
 }
 
+// @Summary      Login
+// @Description  Validates a signed challenge and returns a JWT token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body domain.LoginRequest true "Login payload"
+// @Success      200  {object}  domain.LoginResponse
+// @Failure      400  {object}  domain.ErrorResponse
+// @Failure      401  {object}  domain.ErrorResponse
+// @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req domain.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

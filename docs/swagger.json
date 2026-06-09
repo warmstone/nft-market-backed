@@ -1,0 +1,967 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "EIP-712 signed order DEX backend. Submit signed orders, browse the order book, query collections and stats.",
+        "title": "NFT Market API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/auth/challenge": {
+            "get": {
+                "description": "Generates a challenge message for the given wallet address to sign",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get auth challenge",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.AuthChallenge"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "description": "Validates a signed challenge and returns a JWT token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login",
+                "parameters": [
+                    {
+                        "description": "Login payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/collections": {
+            "get": {
+                "description": "Returns paginated collections with optional search",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "List collections",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default: 20)",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "collections": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/nft-market-backend_internal_domain.Collection"
+                                    }
+                                },
+                                "page": {
+                                    "type": "integer"
+                                },
+                                "pageSize": {
+                                    "type": "integer"
+                                },
+                                "total": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/collections/{address}": {
+            "get": {
+                "description": "Returns a single collection by address with floor price, best bid, and listed count",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Get collection detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "bestBid": {
+                                    "type": "string"
+                                },
+                                "collection": {
+                                    "$ref": "#/definitions/nft-market-backend_internal_domain.Collection"
+                                },
+                                "floorPrice": {
+                                    "type": "string"
+                                },
+                                "listed": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders": {
+            "get": {
+                "description": "Returns paginated orders with optional filters (collection, maker, side, kind, status, price range)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "List orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection address",
+                        "name": "collection",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Maker address",
+                        "name": "maker",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Order side (0=Sell, 1=Buy)",
+                        "name": "side",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Order kind (0-4)",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Asset type (0=ERC721, 1=ERC1155)",
+                        "name": "assetType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Order status (0-3)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Minimum price (decimal string)",
+                        "name": "minPrice",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Maximum price (decimal string)",
+                        "name": "maxPrice",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default: 20, max: 50)",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "orders": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/nft-market-backend_internal_domain.Order"
+                                    }
+                                },
+                                "page": {
+                                    "type": "integer"
+                                },
+                                "pageSize": {
+                                    "type": "integer"
+                                },
+                                "total": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Validates EIP-712 signature and persists a new order to the order book",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Submit signed order",
+                "parameters": [
+                    {
+                        "description": "Order submission payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.SubmitOrderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "orderHash": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/best": {
+            "get": {
+                "description": "Returns the best (lowest) sell or buy order for a collection",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get best order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection address",
+                        "name": "collection",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Order side (0=Sell, 1=Buy, default: 0)",
+                        "name": "side",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{hash}": {
+            "get": {
+                "description": "Returns a single order by its order hash",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get order by hash",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order hash",
+                        "name": "hash",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.Order"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats": {
+            "get": {
+                "description": "Returns platform-level aggregate statistics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stats"
+                ],
+                "summary": "Get global stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "totalCollections": {
+                                    "type": "integer"
+                                },
+                                "totalOrders": {
+                                    "type": "integer"
+                                },
+                                "totalTraders": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats/{collection}": {
+            "get": {
+                "description": "Returns market stats for a specific collection (floor price, best bid, listed count)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stats"
+                ],
+                "summary": "Get collection stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection address",
+                        "name": "collection",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "bestBid": {
+                                    "type": "string"
+                                },
+                                "collection": {
+                                    "type": "string"
+                                },
+                                "floorPrice": {
+                                    "type": "string"
+                                },
+                                "listed": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{address}/orders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all orders for a given user address, optionally filtered by status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get user orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User wallet address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Order status filter (0=Active, 1=Filled, 2=Cancelled, 3=Expired)",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "orders": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/nft-market-backend_internal_domain.Order"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "nft-market-backend_internal_domain.AssetType": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                0,
+                1
+            ],
+            "x-enum-varnames": [
+                "ERC721",
+                "ERC1155"
+            ]
+        },
+        "nft-market-backend_internal_domain.AuthChallenge": {
+            "type": "object",
+            "properties": {
+                "challenge": {
+                    "type": "string"
+                },
+                "issuedAt": {
+                    "type": "string"
+                },
+                "nonce": {
+                    "type": "string"
+                }
+            }
+        },
+        "nft-market-backend_internal_domain.BigInt": {
+            "type": "object"
+        },
+        "nft-market-backend_internal_domain.Collection": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chainId": {
+                    "type": "integer"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "symbol": {
+                    "type": "string"
+                },
+                "syncedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "nft-market-backend_internal_domain.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "nft-market-backend_internal_domain.LoginRequest": {
+            "type": "object",
+            "required": [
+                "address",
+                "signature"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "nft-market-backend_internal_domain.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "expiresAt": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "nft-market-backend_internal_domain.Order": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "ERC721 = 1",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.BigInt"
+                        }
+                    ]
+                },
+                "assetType": {
+                    "description": "0=ERC721, 1=ERC1155",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.AssetType"
+                        }
+                    ]
+                },
+                "collection": {
+                    "type": "string"
+                },
+                "counter": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.BigInt"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "endTime": {
+                    "description": "0 = never expires",
+                    "type": "integer"
+                },
+                "extra": {
+                    "description": "bytes32",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "Server-side metadata",
+                    "type": "integer"
+                },
+                "kind": {
+                    "description": "0=FixedPrice, 1=DutchAuction, 2=CollectionBid, 3=TraitBid, 4=Bundle",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.OrderKind"
+                        }
+                    ]
+                },
+                "maker": {
+                    "description": "EIP-712 canonical fields",
+                    "type": "string"
+                },
+                "orderHash": {
+                    "type": "string"
+                },
+                "paymentToken": {
+                    "description": "address(0) = ETH",
+                    "type": "string"
+                },
+                "price": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.BigInt"
+                },
+                "salt": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.BigInt"
+                },
+                "side": {
+                    "description": "0=Sell, 1=Buy",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.OrderSide"
+                        }
+                    ]
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "startPrice": {
+                    "description": "Dutch auction start price",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/nft-market-backend_internal_domain.BigInt"
+                        }
+                    ]
+                },
+                "startTime": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.OrderStatus"
+                },
+                "taker": {
+                    "description": "address(0) = public order",
+                    "type": "string"
+                },
+                "tokenId": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.BigInt"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "nft-market-backend_internal_domain.OrderKind": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "x-enum-varnames": [
+                "FixedPrice",
+                "DutchAuction",
+                "CollectionBid",
+                "TraitBid",
+                "Bundle"
+            ]
+        },
+        "nft-market-backend_internal_domain.OrderSide": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                0,
+                1
+            ],
+            "x-enum-varnames": [
+                "Sell",
+                "Buy"
+            ]
+        },
+        "nft-market-backend_internal_domain.OrderStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "x-enum-varnames": [
+                "Active",
+                "Filled",
+                "Cancelled",
+                "Expired"
+            ]
+        },
+        "nft-market-backend_internal_domain.SubmitOrderRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "assetType",
+                "collection",
+                "kind",
+                "maker",
+                "price",
+                "salt",
+                "side",
+                "signature",
+                "startTime",
+                "tokenId"
+            ],
+            "properties": {
+                "amount": {
+                    "description": "decimal string",
+                    "type": "string"
+                },
+                "assetType": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.AssetType"
+                },
+                "collection": {
+                    "type": "string"
+                },
+                "endTime": {
+                    "type": "integer"
+                },
+                "extra": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.OrderKind"
+                },
+                "maker": {
+                    "type": "string"
+                },
+                "paymentToken": {
+                    "type": "string"
+                },
+                "price": {
+                    "description": "decimal string",
+                    "type": "string"
+                },
+                "salt": {
+                    "description": "decimal string",
+                    "type": "string"
+                },
+                "side": {
+                    "$ref": "#/definitions/nft-market-backend_internal_domain.OrderSide"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "startPrice": {
+                    "description": "decimal string",
+                    "type": "string"
+                },
+                "startTime": {
+                    "type": "integer"
+                },
+                "taker": {
+                    "type": "string"
+                },
+                "tokenId": {
+                    "description": "decimal string",
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

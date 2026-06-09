@@ -1,0 +1,647 @@
+basePath: /api/v1
+definitions:
+  nft-market-backend_internal_domain.AssetType:
+    enum:
+    - 0
+    - 1
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - ERC721
+    - ERC1155
+  nft-market-backend_internal_domain.AuthChallenge:
+    properties:
+      challenge:
+        type: string
+      issuedAt:
+        type: string
+      nonce:
+        type: string
+    type: object
+  nft-market-backend_internal_domain.BigInt:
+    type: object
+  nft-market-backend_internal_domain.Collection:
+    properties:
+      address:
+        type: string
+      chainId:
+        type: integer
+      imageUrl:
+        type: string
+      metadata:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      symbol:
+        type: string
+      syncedAt:
+        type: string
+    type: object
+  nft-market-backend_internal_domain.ErrorResponse:
+    properties:
+      code:
+        type: integer
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  nft-market-backend_internal_domain.LoginRequest:
+    properties:
+      address:
+        type: string
+      signature:
+        type: string
+    required:
+    - address
+    - signature
+    type: object
+  nft-market-backend_internal_domain.LoginResponse:
+    properties:
+      expiresAt:
+        type: string
+      token:
+        type: string
+    type: object
+  nft-market-backend_internal_domain.Order:
+    properties:
+      amount:
+        allOf:
+        - $ref: '#/definitions/nft-market-backend_internal_domain.BigInt'
+        description: ERC721 = 1
+      assetType:
+        allOf:
+        - $ref: '#/definitions/nft-market-backend_internal_domain.AssetType'
+        description: 0=ERC721, 1=ERC1155
+      collection:
+        type: string
+      counter:
+        $ref: '#/definitions/nft-market-backend_internal_domain.BigInt'
+      createdAt:
+        type: string
+      endTime:
+        description: 0 = never expires
+        type: integer
+      extra:
+        description: bytes32
+        type: string
+      id:
+        description: Server-side metadata
+        type: integer
+      kind:
+        allOf:
+        - $ref: '#/definitions/nft-market-backend_internal_domain.OrderKind'
+        description: 0=FixedPrice, 1=DutchAuction, 2=CollectionBid, 3=TraitBid, 4=Bundle
+      maker:
+        description: EIP-712 canonical fields
+        type: string
+      orderHash:
+        type: string
+      paymentToken:
+        description: address(0) = ETH
+        type: string
+      price:
+        $ref: '#/definitions/nft-market-backend_internal_domain.BigInt'
+      salt:
+        $ref: '#/definitions/nft-market-backend_internal_domain.BigInt'
+      side:
+        allOf:
+        - $ref: '#/definitions/nft-market-backend_internal_domain.OrderSide'
+        description: 0=Sell, 1=Buy
+      signature:
+        type: string
+      startPrice:
+        allOf:
+        - $ref: '#/definitions/nft-market-backend_internal_domain.BigInt'
+        description: Dutch auction start price
+      startTime:
+        type: integer
+      status:
+        $ref: '#/definitions/nft-market-backend_internal_domain.OrderStatus'
+      taker:
+        description: address(0) = public order
+        type: string
+      tokenId:
+        $ref: '#/definitions/nft-market-backend_internal_domain.BigInt'
+      updatedAt:
+        type: string
+    type: object
+  nft-market-backend_internal_domain.OrderKind:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - FixedPrice
+    - DutchAuction
+    - CollectionBid
+    - TraitBid
+    - Bundle
+  nft-market-backend_internal_domain.OrderSide:
+    enum:
+    - 0
+    - 1
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - Sell
+    - Buy
+  nft-market-backend_internal_domain.OrderStatus:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - Active
+    - Filled
+    - Cancelled
+    - Expired
+  nft-market-backend_internal_domain.SubmitOrderRequest:
+    properties:
+      amount:
+        description: decimal string
+        type: string
+      assetType:
+        $ref: '#/definitions/nft-market-backend_internal_domain.AssetType'
+      collection:
+        type: string
+      endTime:
+        type: integer
+      extra:
+        type: string
+      kind:
+        $ref: '#/definitions/nft-market-backend_internal_domain.OrderKind'
+      maker:
+        type: string
+      paymentToken:
+        type: string
+      price:
+        description: decimal string
+        type: string
+      salt:
+        description: decimal string
+        type: string
+      side:
+        $ref: '#/definitions/nft-market-backend_internal_domain.OrderSide'
+      signature:
+        type: string
+      startPrice:
+        description: decimal string
+        type: string
+      startTime:
+        type: integer
+      taker:
+        type: string
+      tokenId:
+        description: decimal string
+        type: string
+    required:
+    - amount
+    - assetType
+    - collection
+    - kind
+    - maker
+    - price
+    - salt
+    - side
+    - signature
+    - startTime
+    - tokenId
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: EIP-712 signed order DEX backend. Submit signed orders, browse the
+    order book, query collections and stats.
+  title: NFT Market API
+  version: "1.0"
+paths:
+  /auth/challenge:
+    get:
+      consumes:
+      - application/json
+      description: Generates a challenge message for the given wallet address to sign
+      parameters:
+      - description: Wallet address
+        in: query
+        name: address
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.AuthChallenge'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: Get auth challenge
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Validates a signed challenge and returns a JWT token
+      parameters:
+      - description: Login payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/nft-market-backend_internal_domain.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: Login
+      tags:
+      - auth
+  /collections:
+    get:
+      consumes:
+      - application/json
+      description: Returns paginated collections with optional search
+      parameters:
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 20)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              collections:
+                items:
+                  $ref: '#/definitions/nft-market-backend_internal_domain.Collection'
+                type: array
+              page:
+                type: integer
+              pageSize:
+                type: integer
+              total:
+                type: integer
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: List collections
+      tags:
+      - collections
+  /collections/{address}:
+    get:
+      consumes:
+      - application/json
+      description: Returns a single collection by address with floor price, best bid,
+        and listed count
+      parameters:
+      - description: Collection address
+        in: path
+        name: address
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              bestBid:
+                type: string
+              collection:
+                $ref: '#/definitions/nft-market-backend_internal_domain.Collection'
+              floorPrice:
+                type: string
+              listed:
+                type: integer
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: Get collection detail
+      tags:
+      - collections
+  /orders:
+    get:
+      consumes:
+      - application/json
+      description: Returns paginated orders with optional filters (collection, maker,
+        side, kind, status, price range)
+      parameters:
+      - description: Collection address
+        in: query
+        name: collection
+        type: string
+      - description: Maker address
+        in: query
+        name: maker
+        type: string
+      - description: Order side (0=Sell, 1=Buy)
+        in: query
+        name: side
+        type: integer
+      - description: Order kind (0-4)
+        in: query
+        name: kind
+        type: integer
+      - description: Asset type (0=ERC721, 1=ERC1155)
+        in: query
+        name: assetType
+        type: integer
+      - description: Order status (0-3)
+        in: query
+        name: status
+        type: integer
+      - description: Minimum price (decimal string)
+        in: query
+        name: minPrice
+        type: string
+      - description: Maximum price (decimal string)
+        in: query
+        name: maxPrice
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 20, max: 50)'
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              orders:
+                items:
+                  $ref: '#/definitions/nft-market-backend_internal_domain.Order'
+                type: array
+              page:
+                type: integer
+              pageSize:
+                type: integer
+              total:
+                type: integer
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: List orders
+      tags:
+      - orders
+    post:
+      consumes:
+      - application/json
+      description: Validates EIP-712 signature and persists a new order to the order
+        book
+      parameters:
+      - description: Order submission payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/nft-market-backend_internal_domain.SubmitOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            properties:
+              orderHash:
+                type: string
+              status:
+                type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit signed order
+      tags:
+      - orders
+  /orders/{hash}:
+    get:
+      consumes:
+      - application/json
+      description: Returns a single order by its order hash
+      parameters:
+      - description: Order hash
+        in: path
+        name: hash
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.Order'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: Get order by hash
+      tags:
+      - orders
+  /orders/best:
+    get:
+      consumes:
+      - application/json
+      description: Returns the best (lowest) sell or buy order for a collection
+      parameters:
+      - description: Collection address
+        in: query
+        name: collection
+        required: true
+        type: string
+      - description: 'Order side (0=Sell, 1=Buy, default: 0)'
+        in: query
+        name: side
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: Get best order
+      tags:
+      - orders
+  /stats:
+    get:
+      consumes:
+      - application/json
+      description: Returns platform-level aggregate statistics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              totalCollections:
+                type: integer
+              totalOrders:
+                type: integer
+              totalTraders:
+                type: integer
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: Get global stats
+      tags:
+      - stats
+  /stats/{collection}:
+    get:
+      consumes:
+      - application/json
+      description: Returns market stats for a specific collection (floor price, best
+        bid, listed count)
+      parameters:
+      - description: Collection address
+        in: path
+        name: collection
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              bestBid:
+                type: string
+              collection:
+                type: string
+              floorPrice:
+                type: string
+              listed:
+                type: integer
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      summary: Get collection stats
+      tags:
+      - stats
+  /users/{address}/orders:
+    get:
+      consumes:
+      - application/json
+      description: Returns all orders for a given user address, optionally filtered
+        by status
+      parameters:
+      - description: User wallet address
+        in: path
+        name: address
+        required: true
+        type: string
+      - description: Order status filter (0=Active, 1=Filled, 2=Cancelled, 3=Expired)
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              orders:
+                items:
+                  $ref: '#/definitions/nft-market-backend_internal_domain.Order'
+                type: array
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/nft-market-backend_internal_domain.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user orders
+      tags:
+      - orders
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

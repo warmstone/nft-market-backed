@@ -22,6 +22,17 @@ func NewCollectionHandler(collectionRepo *repository.CollectionRepo, orderRepo *
 }
 
 // List handles GET /api/v1/collections.
+// @Summary      List collections
+// @Description  Returns paginated collections with optional search
+// @Tags         collections
+// @Accept       json
+// @Produce      json
+// @Param        search    query  string  false  "Search term"
+// @Param        page      query  int     false  "Page number (default: 1)"
+// @Param        pageSize  query  int     false  "Page size (default: 20)"
+// @Success      200  {object}  object{collections=[]domain.Collection,total=int,page=int,pageSize=int}
+// @Failure      500  {object}  domain.ErrorResponse
+// @Router       /collections [get]
 func (h *CollectionHandler) List(c *gin.Context) {
 	search := c.Query("search")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -45,6 +56,16 @@ func (h *CollectionHandler) List(c *gin.Context) {
 }
 
 // Get handles GET /api/v1/collections/:address.
+// @Summary      Get collection detail
+// @Description  Returns a single collection by address with floor price, best bid, and listed count
+// @Tags         collections
+// @Accept       json
+// @Produce      json
+// @Param        address  path  string  true  "Collection address"
+// @Success      200  {object}  object{collection=domain.Collection,floorPrice=string,bestBid=string,listed=int}
+// @Failure      404  {object}  domain.ErrorResponse
+// @Failure      500  {object}  domain.ErrorResponse
+// @Router       /collections/{address} [get]
 func (h *CollectionHandler) Get(c *gin.Context) {
 	address := c.Param("address")
 
@@ -78,6 +99,14 @@ func (h *CollectionHandler) Get(c *gin.Context) {
 }
 
 // GlobalStats handles GET /api/v1/stats.
+// @Summary      Get global stats
+// @Description  Returns platform-level aggregate statistics
+// @Tags         stats
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  object{totalOrders=int,totalCollections=int,totalTraders=int}
+// @Failure      500  {object}  domain.ErrorResponse
+// @Router       /stats [get]
 func (h *CollectionHandler) GlobalStats(c *gin.Context) {
 	totalOrders, _ := h.collectionRepo.GetTotalOrders()
 	totalCollections, _ := h.collectionRepo.GetCollectionCount()
@@ -91,6 +120,15 @@ func (h *CollectionHandler) GlobalStats(c *gin.Context) {
 }
 
 // CollectionStats handles GET /api/v1/stats/:collection.
+// @Summary      Get collection stats
+// @Description  Returns market stats for a specific collection (floor price, best bid, listed count)
+// @Tags         stats
+// @Accept       json
+// @Produce      json
+// @Param        collection  path  string  true  "Collection address"
+// @Success      200  {object}  object{collection=string,floorPrice=string,bestBid=string,listed=int}
+// @Failure      500  {object}  domain.ErrorResponse
+// @Router       /stats/{collection} [get]
 func (h *CollectionHandler) CollectionStats(c *gin.Context) {
 	address := c.Param("collection")
 
