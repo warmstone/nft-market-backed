@@ -1,6 +1,9 @@
+// Package log provides a global zap logger singleton for structured JSON logging.
 package log
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"go.uber.org/zap"
@@ -8,6 +11,10 @@ import (
 )
 
 var Logger *zap.Logger
+
+func init() {
+	Logger = zap.NewNop()
+}
 
 func Init(level string) {
 	cfg := zap.NewProductionConfig()
@@ -37,6 +44,7 @@ func parseLevel(s string) zapcore.Level {
 	case "error":
 		return zapcore.ErrorLevel
 	default:
+		fmt.Fprintf(os.Stderr, "log: unknown level %q, defaulting to info\n", s)
 		return zapcore.InfoLevel
 	}
 }
