@@ -1,4 +1,4 @@
 .env
 bin/
-api
+/api
 *.log

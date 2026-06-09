@@ -124,8 +124,15 @@ func main() {
 	// Router.
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(middleware.RequestID())
+	router.Use(middleware.AccessLog())
 	router.Use(middleware.CORS())
 	router.Use(middleware.RateLimit(10, 20))
+
+	// Health checks.
+	healthH := handler.NewHealthHandler(db, cacheSvc.Client(), rpcClient)
+	router.GET("/health", healthH.Health)
+	router.GET("/ready", healthH.Ready)
 
 	api := router.Group("/api/v1")
 	{
