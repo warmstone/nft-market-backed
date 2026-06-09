@@ -466,6 +466,32 @@ func (r *OrderRepo) GetListedCount(collection string) (int64, error) {
 	return count, nil
 }
 
+// GetMakerActiveCollections returns distinct collection addresses where the
+// maker has at least one active order.
+func (r *OrderRepo) GetMakerActiveCollections(maker string) ([]string, error) {
+	makerB, err := hexDecode(maker)
+	if err != nil {
+		return nil, fmt.Errorf("decode maker: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(context.Background(),
+		`SELECT DISTINCT collection FROM orders WHERE maker = $1 AND status = 0`, makerB)
+	if err != nil {
+		return nil, fmt.Errorf("query maker collections: %w", err)
+	}
+	defer rows.Close()
+
+	var collections []string
+	for rows.Next() {
+		var b []byte
+		if err := rows.Scan(&b); err != nil {
+			return nil, fmt.Errorf("scan collection: %w", err)
+		}
+		collections = append(collections, hexEncode(b))
+	}
+	return collections, rows.Err()
+}
+
 // unixTime converts a uint64 unix timestamp to time.Time in UTC.
 func unixTime(ts uint64) time.Time {
 	return time.Unix(int64(ts), 0).UTC()

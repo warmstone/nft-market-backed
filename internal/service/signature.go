@@ -63,23 +63,23 @@ func NewSignatureService(chainID int64, verifyingContract string) *SignatureServ
 
 // Verify checks that the EIP-712 signature on an order was produced by the
 // order's maker. It enforces low-s (ECDSA malleability prevention) and
-// recovers the signer via ECDSA.
-func (s *SignatureService) Verify(order *domain.Order) error {
+// recovers the signer via ECDSA. Returns the EIP-712 typed data hash on success.
+func (s *SignatureService) Verify(order *domain.Order) (string, error) {
 	// Decode the 0x-prefixed hex signature.
 	sig, err := hex.DecodeString(strings.TrimPrefix(order.Signature, "0x"))
 	if err != nil {
-		return fmt.Errorf("decode signature: %w", err)
+		return "", fmt.Errorf("decode signature: %w", err)
 	}
 	if len(sig) != 65 {
-		return fmt.Errorf("signature length %d, expected 65", len(sig))
+		return "", fmt.Errorf("signature length %d, expected 65", len(sig))
 	}
 
 	// Enforce low-s (EIP-2).
-	if sig[33] > 1 {
-		return fmt.Errorf("invalid recovery id v: %d", sig[64])
+	if sig[64] > 1 {
+		return "", fmt.Errorf("invalid recovery id v: %d", sig[64])
 	}
 	if !crypto.ValidateSignatureValues(sig[64], new(big.Int).SetBytes(sig[0:32]), new(big.Int).SetBytes(sig[32:64]), false) {
-		return fmt.Errorf("signature s value is not in low half")
+		return "", fmt.Errorf("signature s value is not in low half")
 	}
 
 	domain := apitypes.TypedDataDomain{
@@ -99,7 +99,7 @@ func (s *SignatureService) Verify(order *domain.Order) error {
 
 	hash, _, err := apitypes.TypedDataAndHash(typedData)
 	if err != nil {
-		return fmt.Errorf("typed data hash: %w", err)
+		return "", fmt.Errorf("typed data hash: %w", err)
 	}
 
 	// Transform V from [27,28] to [0,1] for crypto.Ecrecover.
@@ -107,20 +107,20 @@ func (s *SignatureService) Verify(order *domain.Order) error {
 
 	pubKey, err := crypto.Ecrecover(hash, sig)
 	if err != nil {
-		return fmt.Errorf("ecrecover: %w", err)
+		return "", fmt.Errorf("ecrecover: %w", err)
 	}
 
 	recoveredAddr, err := crypto.UnmarshalPubkey(pubKey)
 	if err != nil {
-		return fmt.Errorf("unmarshal pubkey: %w", err)
+		return "", fmt.Errorf("unmarshal pubkey: %w", err)
 	}
 
 	maker := common.HexToAddress(order.Maker)
 	if crypto.PubkeyToAddress(*recoveredAddr) != maker {
-		return ErrInvalidSignature
+		return "", ErrInvalidSignature
 	}
 
-	return nil
+	return fmt.Sprintf("0x%x", hash), nil
 }
 
 // buildMessage converts a domain.Order into the TypedDataMessage expected by go-ethereum.

@@ -51,6 +51,7 @@ type Watcher struct {
 	mu           sync.Mutex
 	lastActivity time.Time
 	cursor       uint64
+	sem          chan struct{}
 }
 
 // NewWatcher creates a Watcher.
@@ -67,6 +68,7 @@ func NewWatcher(
 		eventSvc:           eventSvc,
 		chainID:            chainID,
 		confirmationBlocks: confirmationBlocks,
+		sem:                make(chan struct{}, 64),
 	}
 }
 
@@ -128,7 +130,16 @@ func (w *Watcher) subscribeLoop(ctx context.Context) {
 				w.lastActivity = time.Now()
 				w.mu.Unlock()
 
-				go w.handleLog(ctx, vLog)
+				select {
+				case w.sem <- struct{}{}:
+					go func() {
+						defer func() { <-w.sem }()
+						w.handleLog(ctx, vLog)
+					}()
+				default:
+					logpkg.Logger.Warn("watcher: dropping log, handler saturated",
+						zap.Uint64("block", uint64(vLog.BlockNumber)))
+				}
 			}
 		}
 	}

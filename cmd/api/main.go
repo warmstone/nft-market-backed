@@ -106,7 +106,7 @@ func main() {
 	collectionRepo.ChainID = cfg.Ethereum.ChainID
 
 	// WebSocket hub.
-	hub := ws.NewHub()
+	hub := ws.NewHub(cfg.Server.AllowedOrigins)
 	go hub.Run()
 
 	// Services.

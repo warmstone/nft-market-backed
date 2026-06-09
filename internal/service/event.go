@@ -110,6 +110,12 @@ func (s *EventService) handleCounterIncremented(event *domain.ContractEvent) err
 		return fmt.Errorf("unmarshal CounterIncremented: %w", err)
 	}
 
+	// Collect affected collections before cancel for cache invalidation.
+	collections, err := s.orderRepo.GetMakerActiveCollections(data.Maker)
+	if err != nil {
+		logpkg.Logger.Warn("failed to get maker collections", zap.String("maker", data.Maker), zap.Error(err))
+	}
+
 	minCounter := new(big.Int)
 	minCounter.SetString(data.Counter, 10)
 
@@ -117,8 +123,13 @@ func (s *EventService) handleCounterIncremented(event *domain.ContractEvent) err
 		return fmt.Errorf("cancel by counter: %w", err)
 	}
 
-	// CounterIncremented doesn't have a specific collection; broadcast
-	// maker-level cancellation so subscribed clients update.
+	ctx := context.Background()
+	for _, col := range collections {
+		if err := s.cache.InvalidateOrders(ctx, col); err != nil {
+			logpkg.Logger.Warn("failed to invalidate order cache", zap.String("collection", col), zap.Error(err))
+		}
+	}
+
 	makerPayload, _ := json.Marshal(map[string]string{"maker": data.Maker})
 	s.hub.Broadcast("", ws.Message{Type: "order:cancelled", Payload: makerPayload})
 	return nil

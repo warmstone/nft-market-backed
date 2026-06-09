@@ -3,6 +3,7 @@ package ws
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +23,6 @@ const (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
 // Message is a JSON-structured WebSocket push.
@@ -94,20 +94,27 @@ func (c *Client) writePump() {
 
 // Hub manages all WebSocket connections and broadcasts.
 type Hub struct {
-	clients       map[*Client]bool
-	byCollection  map[string]map[*Client]bool
-	register      chan *Client
-	unregister    chan *Client
-	mu            sync.RWMutex
+	clients        map[*Client]bool
+	byCollection   map[string]map[*Client]bool
+	register       chan *Client
+	unregister     chan *Client
+	mu             sync.RWMutex
+	allowedOrigins map[string]bool
 }
 
-// NewHub creates a new Hub.
-func NewHub() *Hub {
+// NewHub creates a new Hub. allowedOrigins is the list of permitted CORS origins;
+// if empty all origins are allowed.
+func NewHub(allowedOrigins []string) *Hub {
+	originMap := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		originMap[strings.ToLower(o)] = true
+	}
 	return &Hub{
-		clients:      make(map[*Client]bool),
-		byCollection: make(map[string]map[*Client]bool),
-		register:     make(chan *Client),
-		unregister:   make(chan *Client),
+		clients:        make(map[*Client]bool),
+		byCollection:   make(map[string]map[*Client]bool),
+		register:       make(chan *Client),
+		unregister:     make(chan *Client),
+		allowedOrigins: originMap,
 	}
 }
 
@@ -173,6 +180,14 @@ func (h *Hub) Broadcast(collection string, msg Message) {
 // Upgrade upgrades an HTTP connection to WebSocket and registers the client
 // for the given collections.
 func (h *Hub) Upgrade(w http.ResponseWriter, r *http.Request, collections []string) error {
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		if len(h.allowedOrigins) == 0 {
+			return true
+		}
+		origin := r.Header.Get("Origin")
+		return h.allowedOrigins[strings.ToLower(origin)]
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return err

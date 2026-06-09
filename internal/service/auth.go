@@ -32,6 +32,11 @@ func NewAuthService(cache *CacheService, jwtSecret string, jwtExpiry, challengeT
 	}
 }
 
+type authNonceData struct {
+	Nonce    string `json:"nonce"`
+	IssuedAt string `json:"issuedAt"`
+}
+
 func (s *AuthService) GenerateChallenge(ctx context.Context, address string) (*domain.AuthChallenge, error) {
 	if !common.IsHexAddress(address) {
 		return nil, domain.NewAppError("INVALID_ADDRESS", "not a valid ethereum address", nil)
@@ -47,7 +52,8 @@ func (s *AuthService) GenerateChallenge(ctx context.Context, address string) (*d
 	challenge := fmt.Sprintf("I am signing in to NFT Market.\n\nNonce: %s\nIssued At: %s", nonce, issuedAt)
 
 	key := "auth:nonce:" + strings.ToLower(address)
-	if err := s.cache.Set(ctx, key, nonce, s.challengeTTL); err != nil {
+	data := authNonceData{Nonce: nonce, IssuedAt: issuedAt}
+	if err := s.cache.Set(ctx, key, &data, s.challengeTTL); err != nil {
 		return nil, fmt.Errorf("store nonce: %w", err)
 	}
 
@@ -64,13 +70,12 @@ func (s *AuthService) Login(ctx context.Context, address string, signature strin
 	}
 
 	key := "auth:nonce:" + strings.ToLower(address)
-	var storedNonce string
-	if err := s.cache.Get(ctx, key, &storedNonce); err != nil {
+	var data authNonceData
+	if err := s.cache.Get(ctx, key, &data); err != nil {
 		return nil, domain.NewAppError("INVALID_CHALLENGE", "nonce not found or expired", nil)
 	}
 
-	issuedAt := time.Now().UTC().Format(time.RFC3339)
-	challenge := fmt.Sprintf("I am signing in to NFT Market.\n\nNonce: %s\nIssued At: %s", storedNonce, issuedAt)
+	challenge := fmt.Sprintf("I am signing in to NFT Market.\n\nNonce: %s\nIssued At: %s", data.Nonce, data.IssuedAt)
 
 	recovered, err := recoverPersonalSign(challenge, signature)
 	if err != nil {

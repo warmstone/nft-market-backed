@@ -13,6 +13,8 @@ type bucket struct {
 	lastCheck time.Time
 }
 
+const maxBuckets = 50_000
+
 // RateLimit returns a token-bucket rate limiter keyed by client IP.
 // rate is tokens per second, burst is the maximum bucket size.
 func RateLimit(rate float64, burst int) gin.HandlerFunc {
@@ -39,6 +41,11 @@ func RateLimit(rate float64, burst int) gin.HandlerFunc {
 		mu.Lock()
 		b, ok := buckets[ip]
 		if !ok {
+			if len(buckets) >= maxBuckets {
+				mu.Unlock()
+				c.Next()
+				return
+			}
 			b = &bucket{tokens: float64(burst), lastCheck: time.Now()}
 			buckets[ip] = b
 		}

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"math/big"
 	"time"
 
@@ -9,12 +8,11 @@ import (
 	"nft-market-backend/internal/repository"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // SignatureVerifier abstracts EIP-712 signature verification for testability.
 type SignatureVerifier interface {
-	Verify(order *domain.Order) error
+	Verify(order *domain.Order) (string, error)
 }
 
 // OrderRepository abstracts order persistence for testability.
@@ -54,9 +52,11 @@ func (s *OrderService) Submit(req *domain.SubmitOrderRequest) (*domain.Order, er
 
 	// 1. Validate signature.
 	order := requestToOrder(req, s.chainID)
-	if err := s.sigSvc.Verify(order); err != nil {
+	orderHash, err := s.sigSvc.Verify(order)
+	if err != nil {
 		return nil, domain.NewAppError("ORDER_SIGNATURE_INVALID", "signature verification failed", err)
 	}
+	order.OrderHash = orderHash
 
 	// 2. Validate maker.
 	if !common.IsHexAddress(req.Maker) || req.Maker == "0x0000000000000000000000000000000000000000" {
@@ -123,11 +123,7 @@ func (s *OrderService) Submit(req *domain.SubmitOrderRequest) (*domain.Order, er
 		}
 	}
 
-	// 9. Compute order hash.
-	orderHash := crypto.Keccak256Hash([]byte(orderToHashInput(req)))
-	order.OrderHash = orderHash.Hex()
-
-	// 10. Persist.
+	// 9. Persist.
 	if err := s.orderRepo.Insert(order); err != nil {
 		return nil, domain.NewAppError("ORDER_PERSIST_FAILED", "failed to persist order", err)
 	}
@@ -244,11 +240,3 @@ func requestToOrder(req *domain.SubmitOrderRequest, chainID int64) *domain.Order
 	}
 }
 
-func orderToHashInput(req *domain.SubmitOrderRequest) string {
-	return fmt.Sprintf("%s|%s|%d|%d|%d|%s|%s|%s|%s|%s|%s|%d|%d|%s|%d|%s",
-		req.Maker, req.Taker, req.Side, req.Kind, req.AssetType,
-		req.Collection, req.TokenID, req.Amount, req.PaymentToken,
-		req.Price, req.StartPrice, req.StartTime, req.EndTime,
-		req.Salt, 0, req.Extra,
-	)
-}

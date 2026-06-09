@@ -53,14 +53,14 @@ func (m *mockOrderRepo) GetBestPrice(collection string, side domain.OrderSide) (
 
 // mockSigVerifier implements SignatureVerifier with configurable behavior.
 type mockSigVerifier struct {
-	verifyFn func(order *domain.Order) error
+	verifyFn func(order *domain.Order) (string, error)
 }
 
-func (m *mockSigVerifier) Verify(order *domain.Order) error {
+func (m *mockSigVerifier) Verify(order *domain.Order) (string, error) {
 	if m.verifyFn != nil {
 		return m.verifyFn(order)
 	}
-	return nil
+	return "0x" + string(make([]byte, 64)), nil
 }
 
 // ---------- helpers ----------
@@ -161,8 +161,8 @@ func TestSubmit_Success_DutchAuction(t *testing.T) {
 func TestSubmit_InvalidSignature(t *testing.T) {
 	repo := &mockOrderRepo{}
 	sig := &mockSigVerifier{
-		verifyFn: func(order *domain.Order) error {
-			return fmt.Errorf("invalid signature")
+		verifyFn: func(order *domain.Order) (string, error) {
+			return "", fmt.Errorf("invalid signature")
 		},
 	}
 	svc := newTestService(repo, sig)
