@@ -86,19 +86,27 @@ func (s *EventService) handleOrderCancelled(event *domain.ContractEvent) error {
 		return fmt.Errorf("unmarshal OrderCancelled: %w", err)
 	}
 
-	order, err := s.orderRepo.FindByHash(data.OrderHash)
+	// Collect affected collections before cancel for cache invalidation.
+	collections, err := s.orderRepo.GetMakerActiveCollections(data.Maker)
 	if err != nil {
-		logpkg.Logger.Warn("failed to find order by hash", zap.Error(err))
+		logpkg.Logger.Warn("failed to get maker collections", zap.String("maker", data.Maker), zap.Error(err))
 	}
-	if order != nil {
-		if err := s.orderRepo.UpdateStatus(data.OrderHash, domain.Cancelled); err != nil {
-			logpkg.Logger.Warn("failed to update order status", zap.String("orderHash", data.OrderHash), zap.Error(err))
+
+	salt := new(big.Int)
+	salt.SetString(data.Salt, 10)
+
+	if err := s.orderRepo.CancelByMakerSalt(data.Maker, salt); err != nil {
+		return fmt.Errorf("cancel by maker+salt: %w", err)
+	}
+
+	ctx := context.Background()
+	for _, col := range collections {
+		if err := s.cache.InvalidateOrders(ctx, col); err != nil {
+			logpkg.Logger.Warn("failed to invalidate order cache", zap.String("collection", col), zap.Error(err))
 		}
-		if err := s.cache.InvalidateOrders(context.Background(), order.Collection); err != nil {
-			logpkg.Logger.Warn("failed to invalidate order cache", zap.String("collection", order.Collection), zap.Error(err))
-		}
-		s.broadcast(order.Collection, "order:cancelled", map[string]string{
+		s.broadcast(col, "order:cancelled", map[string]string{
 			"maker": data.Maker,
+			"salt":  data.Salt,
 		})
 	}
 	return nil

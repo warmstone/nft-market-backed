@@ -40,19 +40,26 @@ func (d DatabaseConfig) DSN() string {
 	)
 }
 
+func (d DatabaseConfig) MigrationURL() string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		d.User, d.Password, d.Host, d.Port, d.Name,
+	)
+}
+
 type RedisConfig struct {
 	Addr string
 }
 
 type EthereumConfig struct {
-	RPCURL                   string
-	WSURL                    string
-	ChainID                  int64
-	ExchangeAddress          string
-	ProtocolManagerAddress   string
-	CollectionManagerAddress string
-	RoyaltyManagerAddress    string
-	ConfirmationBlocks       int64
+	RPCURL                   string `mapstructure:"rpc_url"`
+	WSURL                    string `mapstructure:"ws_url"`
+	ChainID                  int64  `mapstructure:"chain_id"`
+	ExchangeAddress          string `mapstructure:"exchange_address"`
+	ProtocolManagerAddress   string `mapstructure:"protocol_manager_address"`
+	CollectionManagerAddress string `mapstructure:"collection_manager_address"`
+	RoyaltyManagerAddress    string `mapstructure:"royalty_manager_address"`
+	ConfirmationBlocks       int64  `mapstructure:"confirmation_blocks"`
 }
 
 type AuthConfig struct {

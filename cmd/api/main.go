@@ -65,7 +65,7 @@ func main() {
 	// Run migrations.
 	if cfg.Migration.Enabled {
 		logpkg.Logger.Info("running database migrations")
-		m, err := migrate.New("file://migrations", cfg.Database.DSN())
+		m, err := migrate.New("file://migrations", cfg.Database.MigrationURL())
 		if err != nil {
 			logpkg.Logger.Fatal("migration init failed", zap.Error(err))
 		}
@@ -141,7 +141,7 @@ func main() {
 	)
 
 	// Handlers.
-	orderH := handler.NewOrderHandler(orderSvc, metadataSvc)
+	orderH := handler.NewOrderHandler(orderSvc, metadataSvc, hub)
 	collectionH := handler.NewCollectionHandler(collectionRepo, orderRepo)
 	wsH := handler.NewWSHandler(hub)
 	// GraphQL resolver and handler.

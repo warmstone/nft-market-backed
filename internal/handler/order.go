@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"nft-market-backend/internal/domain"
 	"nft-market-backend/internal/middleware"
 	"nft-market-backend/internal/service"
+	"nft-market-backend/internal/ws"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,11 +34,12 @@ type metadataService interface {
 type OrderHandler struct {
 	orderSvc    orderService
 	metadataSvc metadataService
+	hub         *ws.Hub
 }
 
 // NewOrderHandler creates an OrderHandler.
-func NewOrderHandler(orderSvc *service.OrderService, metadataSvc *service.MetadataService) *OrderHandler {
-	return &OrderHandler{orderSvc: orderSvc, metadataSvc: metadataSvc}
+func NewOrderHandler(orderSvc *service.OrderService, metadataSvc *service.MetadataService, hub *ws.Hub) *OrderHandler {
+	return &OrderHandler{orderSvc: orderSvc, metadataSvc: metadataSvc, hub: hub}
 }
 
 // Submit handles POST /api/v1/orders.
@@ -71,6 +74,13 @@ func (h *OrderHandler) Submit(c *gin.Context) {
 
 	// Enqueue metadata fetch for this NFT.
 	h.metadataSvc.Enqueue(order.Collection, order.TokenID.Int.String())
+
+	// Broadcast order:new via WebSocket.
+	orderJSON, _ := json.Marshal(order)
+	h.hub.Broadcast(order.Collection, ws.Message{
+		Type:    "order:new",
+		Payload: orderJSON,
+	})
 
 	middleware.OrdersSubmittedTotal.Inc()
 

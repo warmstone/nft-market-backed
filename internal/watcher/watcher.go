@@ -21,11 +21,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// Event signatures must match the canonical Solidity form:
+//
+//	event OrderFulfilled(bytes32 indexed, uint256 indexed, address indexed,
+//	    address, address, address, uint8, uint8, address, uint256, uint256, address, uint128, uint256, uint256);
+//	event OrderCancelled(address indexed maker, uint256 indexed salt);
+//	event CounterIncremented(address indexed maker, uint256 newCounter);
+//	event CollectionUpdated(address indexed collection, bool allowed, bool blocked);
 var (
-	topicOrderFulfilled     = eventSigHash("OrderFulfilled(bytes32,address,address,uint256,uint256,uint128)")
-	topicOrderCancelled     = eventSigHash("OrderCancelled(bytes32,address)")
+	topicOrderFulfilled     = eventSigHash("OrderFulfilled(bytes32,uint256,address,address,address,address,uint8,uint8,address,uint256,uint256,address,uint128,uint256,uint256)")
+	topicOrderCancelled     = eventSigHash("OrderCancelled(address,uint256)")
 	topicCounterIncremented = eventSigHash("CounterIncremented(address,uint256)")
-	topicCollectionUpdated  = eventSigHash("CollectionUpdated(address,bool)")
+	topicCollectionUpdated  = eventSigHash("CollectionUpdated(address,bool,bool)")
 )
 
 func eventSigHash(s string) string {
@@ -356,26 +363,55 @@ func (w *Watcher) waitConfirmations(ctx context.Context, blockNum uint64) error 
 }
 
 func parseOrderFulfilled(vLog types.Log) (domain.OrderFulfilledData, error) {
+	// Event layout (3 indexed topics + 12 non-indexed data fields = 384 bytes):
+	//   topic1 = orderHash (bytes32)
+	//   topic2 = salt (uint256)
+	//   topic3 = maker (address)
+	//   data[0:32]    = taker (address)
+	//   data[32:64]   = seller (address)
+	//   data[64:96]   = buyer (address)
+	//   data[96:128]  = side (uint8)
+	//   data[128:160] = kind (uint8)
+	//   data[160:192] = collection (address)
+	//   data[192:224] = tokenId (uint256)
+	//   data[224:256] = amount (uint256)
+	//   data[256:288] = paymentToken (address)
+	//   data[288:320] = finalPrice (uint128)
+	//   data[320:352] = protocolFee (uint256)
+	//   data[352:384] = royaltyFee (uint256)
 	var data domain.OrderFulfilledData
 	data.OrderHash = vLog.Topics[1].Hex()
-	data.Maker = common.BytesToAddress(vLog.Topics[2].Bytes()).Hex()
-	data.Taker = common.BytesToAddress(vLog.Topics[3].Bytes()).Hex()
-	if len(vLog.Data) >= 96 {
-		data.TokenID = new(big.Int).SetBytes(vLog.Data[0:32]).String()
-		data.Amount = new(big.Int).SetBytes(vLog.Data[32:64]).String()
-		data.Price = new(big.Int).SetBytes(vLog.Data[64:96]).String()
+	data.Maker = common.BytesToAddress(vLog.Topics[3].Bytes()).Hex()
+	if len(vLog.Data) >= 384 {
+		data.Taker = common.BytesToAddress(vLog.Data[0:32]).Hex()
+		data.Seller = common.BytesToAddress(vLog.Data[32:64]).Hex()
+		data.Buyer = common.BytesToAddress(vLog.Data[64:96]).Hex()
+		data.Collection = common.BytesToAddress(vLog.Data[160:192]).Hex()
+		data.TokenID = new(big.Int).SetBytes(vLog.Data[192:224]).String()
+		data.Amount = new(big.Int).SetBytes(vLog.Data[224:256]).String()
+		data.PaymentToken = common.BytesToAddress(vLog.Data[256:288]).Hex()
+		data.Price = new(big.Int).SetBytes(vLog.Data[288:320]).String()
+		data.ProtocolFee = new(big.Int).SetBytes(vLog.Data[320:352]).String()
+		data.RoyaltyFee = new(big.Int).SetBytes(vLog.Data[352:384]).String()
 	}
 	return data, nil
 }
 
 func parseOrderCancelled(vLog types.Log) (domain.OrderCancelledData, error) {
+	// Event layout: OrderCancelled(address indexed maker, uint256 indexed salt)
+	//   topic1 = maker (address)
+	//   topic2 = salt (uint256)
+	//   data = (empty)
 	var data domain.OrderCancelledData
-	data.OrderHash = vLog.Topics[1].Hex()
-	data.Maker = common.BytesToAddress(vLog.Topics[2].Bytes()).Hex()
+	data.Maker = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
+	data.Salt = new(big.Int).SetBytes(vLog.Topics[2].Bytes()).String()
 	return data, nil
 }
 
 func parseCounterIncremented(vLog types.Log) (domain.CounterIncrementedData, error) {
+	// Event layout: CounterIncremented(address indexed maker, uint256 newCounter)
+	//   topic1 = maker (address)
+	//   data[0:32] = newCounter (uint256)
 	var data domain.CounterIncrementedData
 	data.Maker = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
 	if len(vLog.Data) >= 32 {
@@ -386,15 +422,22 @@ func parseCounterIncremented(vLog types.Log) (domain.CounterIncrementedData, err
 
 func parseCollectionUpdated(vLog types.Log) (struct {
 	Collection string `json:"collection"`
+	Allowed    bool   `json:"allowed"`
 	Blocked    bool   `json:"blocked"`
 }, error) {
+	// Event layout: CollectionUpdated(address indexed collection, bool allowed, bool blocked)
+	//   topic1 = collection (address)
+	//   data[0:32]  = allowed (bool, padded to 32 bytes)
+	//   data[32:64] = blocked (bool, padded to 32 bytes)
 	var data struct {
 		Collection string `json:"collection"`
+		Allowed    bool   `json:"allowed"`
 		Blocked    bool   `json:"blocked"`
 	}
 	data.Collection = common.BytesToAddress(vLog.Topics[1].Bytes()).Hex()
-	if len(vLog.Data) >= 32 {
-		data.Blocked = new(big.Int).SetBytes(vLog.Data[0:32]).Cmp(big.NewInt(1)) == 0
+	if len(vLog.Data) >= 64 {
+		data.Allowed = new(big.Int).SetBytes(vLog.Data[0:32]).Cmp(big.NewInt(1)) == 0
+		data.Blocked = new(big.Int).SetBytes(vLog.Data[32:64]).Cmp(big.NewInt(1)) == 0
 	}
 	return data, nil
 }

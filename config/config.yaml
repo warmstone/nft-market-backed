@@ -11,22 +11,22 @@ database:
   port: 5432
   name: nft_market
   user: app
-  password: ""
+  password: "nft_market_pass"
 
 redis:
   addr: localhost:6379
 
 ethereum:
-  rpc_url: ""
-  ws_url: ""
-  chain_id: 31337
-  exchange_address: "0x0000000000000000000000000000000000000000"
-  protocol_manager_address: "0x0000000000000000000000000000000000000000"
-  collection_manager_address: "0x0000000000000000000000000000000000000000"
-  royalty_manager_address: "0x0000000000000000000000000000000000000000"
+  rpc_url: "https://api.web3auth.io/infura-service/v1/0xaa36a7/BF_V-19wdoaEwvSIJMThVH4FLSoc0XqJP7JgNYhIWtZuHTDfOvdvKWtwC7iv9-M1_JuXJ8_Yca7fMOgxoOVEM68"
+  ws_url: "wss://api.web3auth.io/infura-service/v1/0xaa36a7/BF_V-19wdoaEwvSIJMThVH4FLSoc0XqJP7JgNYhIWtZuHTDfOvdvKWtwC7iv9-M1_JuXJ8_Yca7fMOgxoOVEM68"
+  chain_id: 11155111
+  exchange_address: "0xaCD4a18E63B01BB04346b2c33f26025d43641a47"
+  protocol_manager_address: "0x4135a1f50fBf2b4bA3699447E15d6355311d72dF"
+  collection_manager_address: "0xB359E10F9930A622cbDF011234669FC6E1018cBE"
+  royalty_manager_address: "0x26be4E0f2437ba6fcd99ef56Eb218D2cc1ab081b"
   confirmation_blocks: 6
 
 auth:
-  jwt_secret: ""
+  jwt_secret: "4faddb313099de94c298df3ee938f70ae85c8dd5a57878ea4628fd0ae472da6b"
   jwt_expiry: 24h
   challenge_ttl: 5m

@@ -25,18 +25,25 @@ type ContractEvent struct {
 
 // OrderFulfilledData is the event data emitted when an order is matched and filled.
 type OrderFulfilledData struct {
-	OrderHash string `json:"orderHash"`
-	Maker     string `json:"maker"`
-	Taker     string `json:"taker"`
-	TokenID   string `json:"tokenId"`  // decimal string (*big.Int)
-	Amount    string `json:"amount"`   // decimal string (*big.Int)
-	Price     string `json:"price"`    // decimal string (*big.Int)
+	OrderHash    string `json:"orderHash"`
+	Maker        string `json:"maker"`
+	Taker        string `json:"taker"`
+	Seller       string `json:"seller"`
+	Buyer        string `json:"buyer"`
+	Collection   string `json:"collection"`
+	TokenID      string `json:"tokenId"`
+	Amount       string `json:"amount"`
+	PaymentToken string `json:"paymentToken"`
+	Price        string `json:"price"`
+	ProtocolFee  string `json:"protocolFee"`
+	RoyaltyFee   string `json:"royaltyFee"`
 }
 
 // OrderCancelledData is the event data emitted when an order is cancelled by its maker.
+// The contract emits (maker, salt) — there is no orderHash in the on-chain event.
 type OrderCancelledData struct {
-	OrderHash string `json:"orderHash"`
-	Maker     string `json:"maker"`
+	Maker string `json:"maker"`
+	Salt  string `json:"salt"`
 }
 
 // CounterIncrementedData is the event data emitted when a maker increments their nonce/counter.

@@ -246,9 +246,9 @@ type OrderResponse struct {
 type SubmitOrderRequest struct {
 	Maker        string    `json:"maker" binding:"required"`
 	Taker        string    `json:"taker"`
-	Side         OrderSide `json:"side" binding:"required"`
-	Kind         OrderKind `json:"kind" binding:"required"`
-	AssetType    AssetType `json:"assetType" binding:"required"`
+	Side         OrderSide `json:"side" binding:"gte=0,lte=1"`
+	Kind         OrderKind `json:"kind" binding:"gte=0,lte=4"`
+	AssetType    AssetType `json:"assetType" binding:"gte=0,lte=1"`
 	Collection   string    `json:"collection" binding:"required"`
 	TokenID      string    `json:"tokenId" binding:"required"`      // decimal string
 	Amount       string    `json:"amount" binding:"required"`       // decimal string
