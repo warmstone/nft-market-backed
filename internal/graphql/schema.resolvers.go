@@ -7,52 +7,143 @@ package graphql
 
 import (
 	"context"
-	"fmt"
+
+	"nft-market-backend/internal/domain"
 )
 
 // SubmitOrder is the resolver for the submitOrder field.
 func (r *mutationResolver) SubmitOrder(ctx context.Context, input SubmitOrderInput) (*Order, error) {
-	panic(fmt.Errorf("not implemented: SubmitOrder - submitOrder"))
+	req := gqlSubmitToDomain(input)
+	order, err := r.OrderSvc.Submit(&req)
+	if err != nil {
+		return nil, err
+	}
+	return domainOrderToGQL(order), nil
 }
 
 // Order is the resolver for the order field.
 func (r *queryResolver) Order(ctx context.Context, hash string) (*Order, error) {
-	panic(fmt.Errorf("not implemented: Order - order"))
+	order, err := r.OrderSvc.GetByHash(hash)
+	if err != nil {
+		return nil, err
+	}
+	return domainOrderToGQL(order), nil
 }
 
 // Orders is the resolver for the orders field.
 func (r *queryResolver) Orders(ctx context.Context, filter *OrderFilter, page int, pageSize int) (*OrderConnection, error) {
-	panic(fmt.Errorf("not implemented: Orders - orders"))
+	var f domain.OrderFilter
+	if filter != nil {
+		f = gqlFilterToDomain(filter)
+	}
+	f.Limit = pageSize
+	f.Offset = (page - 1) * pageSize
+
+	orders, total, err := r.OrderSvc.Find(f)
+	if err != nil {
+		return nil, err
+	}
+	return &OrderConnection{
+		Orders:   domainOrdersToGQL(orders),
+		Total:    int(total),
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
 }
 
 // BestOrder is the resolver for the bestOrder field.
 func (r *queryResolver) BestOrder(ctx context.Context, collection string, side int) (*Order, error) {
-	panic(fmt.Errorf("not implemented: BestOrder - bestOrder"))
+	order, err := r.OrderSvc.GetBest(collection, domain.OrderSide(side))
+	if err != nil {
+		return nil, err
+	}
+	return domainOrderToGQL(order), nil
 }
 
 // Collection is the resolver for the collection field.
 func (r *queryResolver) Collection(ctx context.Context, address string) (*Collection, error) {
-	panic(fmt.Errorf("not implemented: Collection - collection"))
+	c, err := r.CollectionRepo.FindByAddress(address)
+	if err != nil {
+		return nil, err
+	}
+	if c == nil {
+		return nil, nil
+	}
+	floor, _ := r.OrderRepo.GetBestPrice(address, domain.Sell)
+	bestBid, _ := r.OrderRepo.GetBestPrice(address, domain.Buy)
+	listed, _ := r.OrderRepo.GetListedCount(address)
+	return domainCollectionToGQL(c, floor, bestBid, listed), nil
 }
 
 // Collections is the resolver for the collections field.
 func (r *queryResolver) Collections(ctx context.Context, search *string, page int, pageSize int) (*CollectionConnection, error) {
-	panic(fmt.Errorf("not implemented: Collections - collections"))
+	searchStr := ""
+	if search != nil {
+		searchStr = *search
+	}
+	collections, total, err := r.CollectionRepo.FindAll(searchStr, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*Collection, len(collections))
+	for i := range collections {
+		result[i] = domainCollectionToGQL(&collections[i], nil, nil, 0)
+	}
+	return &CollectionConnection{
+		Collections: result,
+		Total:       int(total),
+		Page:        page,
+		PageSize:    pageSize,
+	}, nil
 }
 
 // UserOrders is the resolver for the userOrders field.
 func (r *queryResolver) UserOrders(ctx context.Context, address string, status []int, page int, pageSize int) (*OrderConnection, error) {
-	panic(fmt.Errorf("not implemented: UserOrders - userOrders"))
+	var s *domain.OrderStatus
+	if len(status) > 0 {
+		st := domain.OrderStatus(status[0])
+		s = &st
+	}
+	f := domain.OrderFilter{
+		Maker:  address,
+		Status: s,
+		Limit:  pageSize,
+		Offset: (page - 1) * pageSize,
+	}
+	orders, total, err := r.OrderSvc.Find(f)
+	if err != nil {
+		return nil, err
+	}
+	return &OrderConnection{
+		Orders:   domainOrdersToGQL(orders),
+		Total:    int(total),
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
 }
 
 // Stats is the resolver for the stats field.
 func (r *queryResolver) Stats(ctx context.Context) (*GlobalStats, error) {
-	panic(fmt.Errorf("not implemented: Stats - stats"))
+	totalOrders, _ := r.CollectionRepo.GetTotalOrders()
+	totalCollections, _ := r.CollectionRepo.GetCollectionCount()
+	totalTraders, _ := r.OrderRepo.GetActiveMakerCount()
+	return &GlobalStats{
+		TotalOrders:      int(totalOrders),
+		TotalCollections: int(totalCollections),
+		TotalTraders:     int(totalTraders),
+	}, nil
 }
 
 // CollectionStats is the resolver for the collectionStats field.
 func (r *queryResolver) CollectionStats(ctx context.Context, address string) (*CollectionStats, error) {
-	panic(fmt.Errorf("not implemented: CollectionStats - collectionStats"))
+	floor, _ := r.OrderRepo.GetBestPrice(address, domain.Sell)
+	bestBid, _ := r.OrderRepo.GetBestPrice(address, domain.Buy)
+	listed, _ := r.OrderRepo.GetListedCount(address)
+	return &CollectionStats{
+		FloorPrice:  floor,
+		BestBid:     bestBid,
+		ListedCount: int(listed),
+	}, nil
 }
 
 // Mutation returns MutationResolver implementation.

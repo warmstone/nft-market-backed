@@ -1,8 +1,13 @@
 package graphql
 
-// This file will not be regenerated automatically.
-//
-// It serves as dependency injection for your app, add any dependencies you require
-// here.
+import (
+	"nft-market-backend/internal/repository"
+	"nft-market-backend/internal/service"
+)
 
-type Resolver struct{}
+// Resolver holds the dependencies needed by GraphQL resolvers.
+type Resolver struct {
+	OrderSvc       *service.OrderService
+	CollectionRepo *repository.CollectionRepo
+	OrderRepo      *repository.OrderRepo
+}
