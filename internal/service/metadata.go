@@ -47,7 +47,7 @@ func NewMetadataService(
 
 // Enqueue adds a metadata fetch job to the queue. Non-blocking; drops if full.
 func (s *MetadataService) Enqueue(collection string, tokenID string) {
-	tid := new(domain.BigInt)
+	tid := domain.NewBigInt(nil)
 	tid.Int.SetString(tokenID, 10)
 
 	select {
@@ -195,12 +195,12 @@ func (s *MetadataService) decodeStringResult(data []byte) string {
 		return ""
 	}
 	// ABI-encoded: first 32 bytes = offset, next 32 bytes = length, then data.
-	offset := new(domain.BigInt)
+	offset := domain.NewBigInt(nil)
 	offset.Int.SetBytes(data[0:32])
 	if offset.Int.Int64() != 32 {
 		return ""
 	}
-	length := new(domain.BigInt)
+	length := domain.NewBigInt(nil)
 	length.Int.SetBytes(data[32:64])
 	ln := length.Int.Int64()
 	if ln <= 0 || int(64+ln) > len(data) {

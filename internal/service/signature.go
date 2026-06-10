@@ -74,6 +74,12 @@ func (s *SignatureService) Verify(order *domain.Order) (string, error) {
 		return "", fmt.Errorf("signature length %d, expected 65", len(sig))
 	}
 
+	// Normalize V: some signers (viem, ethers v5) return [27,28]
+	// while go-ethereum's Ecrecover expects [0,1].
+	if sig[64] >= 27 {
+		sig[64] -= 27
+	}
+
 	// Enforce low-s (EIP-2).
 	if sig[64] > 1 {
 		return "", fmt.Errorf("invalid recovery id v: %d", sig[64])
@@ -102,8 +108,7 @@ func (s *SignatureService) Verify(order *domain.Order) (string, error) {
 		return "", fmt.Errorf("typed data hash: %w", err)
 	}
 
-	// Transform V from [27,28] to [0,1] for crypto.Ecrecover.
-	sig[64] -= 27
+	// V has already been normalized to [0,1] above.
 
 	pubKey, err := crypto.Ecrecover(hash, sig)
 	if err != nil {
